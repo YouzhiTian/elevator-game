@@ -376,9 +376,8 @@ function update() {
       score = Math.max(0, score - 5);
       satisfaction = Math.max(0, satisfaction - 3);
       combo = 0; comboTimer = 0;
-      const totalShaftW_ = ELEV_COUNT * SHAFT_W + (ELEV_COUNT - 1) * SHAFT_GAP;
-      const shaftCX_ = shaftX(0) + totalShaftW_ / 2;
-      addFloatText(shaftCX_ - totalShaftW_ * 0.4 + p.slot * (totalShaftW_ / 3), floorY(p.floor) + FLOOR_H * 0.3, '-5', '#ef5350');
+      const lx_ = lobbyStartX();
+      addFloatText(lx_ + 10 + p.slot * (LOBBY_W / 4), floorY(p.floor) + FLOOR_H * 0.3, '-5', '#ef5350');
       sfxAngry();
     }
   }
@@ -789,10 +788,9 @@ function drawWaitingPeople() {
       ctx.globalAlpha = alpha;
     }
 
-    // position people right at the elevator shafts area
-    const totalShaftW = ELEV_COUNT * SHAFT_W + (ELEV_COUNT - 1) * SHAFT_GAP;
-    const shaftCenterX = shaftX(0) + totalShaftW / 2;
-    const px = shaftCenterX - totalShaftW * 0.4 + p.slot * (totalShaftW / 3);
+    // position people in the lobby area (right of elevator shafts)
+    const lx = lobbyStartX();
+    const px = lx + 10 + p.slot * (LOBBY_W / 4);
     const fy = floorY(p.floor);
     const py = fy + FLOOR_H * 0.78;
     const bob = Math.sin(tick * 0.06 + p.bobOffset) * 1.2;
