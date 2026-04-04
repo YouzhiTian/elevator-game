@@ -804,32 +804,32 @@ function drawWaitingPeople() {
     // person shadow
     ctx.fillStyle = 'rgba(0,0,0,0.15)';
     ctx.beginPath();
-    ctx.ellipse(dx, dy + 4, 5, 1.5, 0, 0, Math.PI * 2);
+    ctx.ellipse(dx, dy + 6, 7, 2, 0, 0, Math.PI * 2);
     ctx.fill();
 
     // body
     ctx.fillStyle = p.type.body;
-    roundRect(ctx, dx - 4, dy - 5, 8, 11, 2);
+    roundRect(ctx, dx - 6, dy - 7, 12, 16, 3);
     ctx.fill();
 
     // head
     ctx.fillStyle = p.type.head;
     ctx.beginPath();
-    ctx.arc(dx, dy - 10, 4.5, 0, Math.PI * 2);
+    ctx.arc(dx, dy - 14, 6.5, 0, Math.PI * 2);
     ctx.fill();
 
     // hair (top of head)
     ctx.fillStyle = p.type.label === 'F' ? '#5d4037' : '#3e2723';
     ctx.beginPath();
-    ctx.arc(dx, dy - 12.5, 4, 0, Math.PI, true);
+    ctx.arc(dx, dy - 17, 5.5, 0, Math.PI, true);
     ctx.fill();
 
     // VIP crown
     if (p.vip) {
       ctx.fillStyle = '#ffd54f';
-      ctx.font = '8px sans-serif';
+      ctx.font = '11px sans-serif';
       ctx.textAlign = 'center';
-      ctx.fillText('👑', dx, dy - 17);
+      ctx.fillText('👑', dx, dy - 24);
     }
 
     // destination badge
@@ -841,18 +841,18 @@ function drawWaitingPeople() {
 
     // badge background
     const badgeX = dx;
-    const badgeY = dy - 23 - (p.vip ? 6 : 0);
+    const badgeY = dy - 30 - (p.vip ? 8 : 0);
     ctx.fillStyle = badgeColor;
     ctx.shadowColor = badgeColor;
-    ctx.shadowBlur = urgency > 0.6 ? 6 : 0;
+    ctx.shadowBlur = urgency > 0.6 ? 8 : 0;
     ctx.beginPath();
-    ctx.arc(badgeX, badgeY, 9, 0, Math.PI * 2);
+    ctx.arc(badgeX, badgeY, 12, 0, Math.PI * 2);
     ctx.fill();
     ctx.shadowBlur = 0;
 
     // badge text
     ctx.fillStyle = '#fff';
-    ctx.font = 'bold 11px -apple-system, sans-serif';
+    ctx.font = 'bold 14px -apple-system, sans-serif';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     ctx.fillText(p.dest, badgeX, badgeY);
@@ -862,8 +862,8 @@ function drawWaitingPeople() {
     if (urgency > 0.7) {
       const shake = Math.sin(tick * 0.3) * 2;
       ctx.fillStyle = '#ef5350';
-      ctx.font = 'bold 10px sans-serif';
-      ctx.fillText('!', dx + 10 + shake, dy - 18);
+      ctx.font = 'bold 13px sans-serif';
+      ctx.fillText('!', dx + 14 + shake, dy - 24);
     }
 
     ctx.globalAlpha = 1;
