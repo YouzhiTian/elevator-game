@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>电梯调度员</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<!-- ====== START SCREEN ====== -->
+<div id="start-screen">
+  <div class="start-bg"></div>
+  <div class="sb">
+    <div class="logo-wrap">
+      <div class="logo-building">
+        <div class="lb-floor" style="--i:0"></div>
+        <div class="lb-floor" style="--i:1"></div>
+        <div class="lb-floor" style="--i:2"></div>
+        <div class="lb-floor" style="--i:3"></div>
+        <div class="lb-floor" style="--i:4"></div>
+        <div class="lb-elev"></div>
+      </div>
+    </div>
+    <h1>电梯调度员</h1>
+    <p class="sub">Elevator Dispatcher</p>
+
+    <div class="card">
+      <h3>📋 游戏简介</h3>
+      <p>管理一栋 <span class="hl">12层大楼</span> 的 <span class="hl">3部电梯</span>。</p>
+      <p>乘客不断出现，头顶显示目的楼层。合理调度，让所有人满意到达！</p>
+      <p>乘客等太久会 <span class="hl2">生气离开</span>，高效运送得 <span class="hl3">连击奖励</span>。</p>
+    </div>
+
+    <div class="card">
+      <h3>🎮 操作方式</h3>
+      <p>1. <span class="hl">点击电梯</span> 选中它（会高亮）</p>
+      <p>2. <span class="hl">点击楼层</span> 派电梯去那一层</p>
+      <p>3. 电梯到了自动 <span class="hl3">接人、送人</span></p>
+      <p>就这么简单！合理分配三部电梯就行。</p>
+    </div>
+
+    <div class="gc">
+      <div class="gc-item">
+        <div class="gi">🌅</div>
+        <div class="gn">早高峰</div>
+        <div class="gd">上班族涌入<br>从1楼上行</div>
+      </div>
+      <div class="gc-item">
+        <div class="gi">🍜</div>
+        <div class="gn">午间</div>
+        <div class="gd">下楼吃饭<br>下行暴增</div>
+      </div>
+      <div class="gc-item">
+        <div class="gi">🌙</div>
+        <div class="gn">晚高峰</div>
+        <div class="gd">全部下班<br>终极考验</div>
+      </div>
+    </div>
+
+    <button id="btn-play" onclick="startGame()">开 始 调 度</button>
+    <p class="stip">完成三个时段即为通关</p>
+  </div>
+</div>
+
+<!-- ====== GAME ====== -->
+<div id="game">
+  <canvas id="cvs"></canvas>
+
+  <!-- HUD -->
+  <div id="hud">
+    <div class="hud-left">
+      <div class="hud-item">
+        <span class="hud-label">分数</span>
+        <span class="hud-val" id="h-score">0</span>
+      </div>
+      <div class="hud-item">
+        <span class="hud-label">连击</span>
+        <span class="hud-val combo" id="h-combo">×1</span>
+      </div>
+    </div>
+    <div class="hud-center">
+      <span class="period-name" id="h-period">早高峰 🌅</span>
+      <div class="period-bar">
+        <div class="period-fill" id="h-bar"></div>
+      </div>
+    </div>
+    <div class="hud-right">
+      <div class="hud-item">
+        <span class="hud-label">满意度</span>
+        <span class="hud-val satis" id="h-satis">100%</span>
+      </div>
+      <div class="hud-item">
+        <span class="hud-label">等待</span>
+        <span class="hud-val" id="h-waiting">0人</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Bottom bar -->
+  <div id="bottom-bar">
+    <div class="bar-hint">点击电梯选中 → 点击楼层派它去</div>
+    <div class="elev-status" id="es0"><span class="elev-dot" style="background:#4fc3f7"></span> A: <span id="ei0">1F·0人</span></div>
+    <div class="elev-status" id="es1"><span class="elev-dot" style="background:#81c784"></span> B: <span id="ei1">1F·0人</span></div>
+    <div class="elev-status" id="es2"><span class="elev-dot" style="background:#ba68c8"></span> C: <span id="ei2">1F·0人</span></div>
+  </div>
+
+  <!-- Upgrade overlay -->
+  <div id="upgrade-overlay">
+    <div class="upgrade-box">
+      <h2 id="upg-title">时段完成！</h2>
+      <div class="upg-stats">
+        <div class="upg-stat"><span class="upg-num" id="upg-score">0</span><span class="upg-lbl">得分</span></div>
+        <div class="upg-stat"><span class="upg-num" id="upg-delivered">0</span><span class="upg-lbl">运送</span></div>
+        <div class="upg-stat"><span class="upg-num" id="upg-combo">0</span><span class="upg-lbl">最高连击</span></div>
+      </div>
+      <h3>选择升级</h3>
+      <div class="upg-options" id="upg-options"></div>
+      <button class="upg-skip" onclick="skipUpgrade()">跳过 →</button>
+    </div>
+  </div>
+
+  <!-- Game Over -->
+  <div id="gameover-overlay">
+    <div class="go-box">
+      <div class="go-grade" id="go-grade">S</div>
+      <h2 id="go-title">调度完成！</h2>
+      <div class="go-stats">
+        <div class="go-row"><span>最终得分</span><b id="go-score">0</b></div>
+        <div class="go-row"><span>运送乘客</span><b id="go-delivered">0</b></div>
+        <div class="go-row"><span>生气离开</span><b id="go-angry">0</b></div>
+        <div class="go-row"><span>最高连击</span><b id="go-combo">0</b></div>
+        <div class="go-row"><span>平均满意度</span><b id="go-satis">0%</b></div>
+      </div>
+      <button class="btn-main" onclick="retryGame()">再来一局</button>
+    </div>
+  </div>
+</div>
+
+<script src="game.js"></script>
+</body>
+</html>
