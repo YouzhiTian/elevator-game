@@ -63,11 +63,11 @@ function resize() {
   H = cvs.height = window.innerHeight;
   const drawH = H - HUD_H - BAR_H;
   FLOOR_H = drawH / FLOORS;
-  BUILD_W = Math.min(W * 0.9, 900);
+  SHAFT_W = Math.min(56, W * 0.08);
+  SHAFT_GAP = Math.min(10, W * 0.015);
+  LOBBY_W = Math.max(80, SHAFT_W * 3);
+  BUILD_W = 30 + ELEV_COUNT * SHAFT_W + (ELEV_COUNT - 1) * SHAFT_GAP + 15 + LOBBY_W + 15;
   BUILD_X = (W - BUILD_W) / 2;
-  SHAFT_W = Math.min(56, BUILD_W * 0.09);
-  SHAFT_GAP = Math.min(10, BUILD_W * 0.015);
-  LOBBY_W = BUILD_W - (SHAFT_W * ELEV_COUNT + SHAFT_GAP * (ELEV_COUNT - 1)) - 60;
 }
 window.addEventListener('resize', resize);
 resize();
