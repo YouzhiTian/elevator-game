@@ -984,34 +984,34 @@ function drawElevatorCabs() {
         const row = Math.floor(pi / 3);
         const px = innerX + col * personW + personW / 2;
         const py = cabY + 8 + row * personH + personH * 0.7;
-        const scale = Math.min(1, personH / 16);
+        const scale = Math.min(1.8, personH / 12);
 
         ctx.fillStyle = p.color;
-        const bw = 4 * scale, bh = 6 * scale;
-        roundRect(ctx, px - bw/2, py - bh, bw, bh, 1);
+        const bw = 5 * scale, bh = 8 * scale;
+        roundRect(ctx, px - bw/2, py - bh, bw, bh, 1.5);
         ctx.fill();
 
         ctx.fillStyle = p.head || '#ffcc80';
         ctx.beginPath();
-        ctx.arc(px, py - bh - 2 * scale, 2.5 * scale, 0, Math.PI * 2);
+        ctx.arc(px, py - bh - 2.5 * scale, 3 * scale, 0, Math.PI * 2);
         ctx.fill();
 
         if (p.vip) {
           ctx.fillStyle = '#ffd54f';
-          ctx.font = `${Math.max(5, 6 * scale)}px sans-serif`;
+          ctx.font = `${Math.max(7, 8 * scale)}px sans-serif`;
           ctx.textAlign = 'center';
-          ctx.fillText('★', px, py - bh - 4.5 * scale);
+          ctx.fillText('★', px, py - bh - 5 * scale);
         }
 
-        ctx.fillStyle = 'rgba(0,0,0,0.45)';
+        ctx.fillStyle = 'rgba(0,0,0,0.55)';
         ctx.beginPath();
-        ctx.arc(px, py + 2 * scale, 4.5 * scale, 0, Math.PI * 2);
+        ctx.arc(px, py + 3 * scale, 6 * scale, 0, Math.PI * 2);
         ctx.fill();
         ctx.fillStyle = '#fff';
-        ctx.font = `bold ${Math.max(7, 8 * scale)}px sans-serif`;
+        ctx.font = `bold ${Math.max(9, 11 * scale)}px sans-serif`;
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
-        ctx.fillText(p.dest, px, py + 2 * scale);
+        ctx.fillText(p.dest, px, py + 3 * scale);
         ctx.textBaseline = 'alphabetic';
       }
     }
