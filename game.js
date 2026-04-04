@@ -63,8 +63,8 @@ function resize() {
   H = cvs.height = window.innerHeight;
   const drawH = H - HUD_H - BAR_H;
   FLOOR_H = drawH / FLOORS;
-  SHAFT_W = Math.min(56, W * 0.08);
-  SHAFT_GAP = Math.min(10, W * 0.015);
+  SHAFT_W = Math.min(90, W * 0.14);
+  SHAFT_GAP = Math.min(16, W * 0.025);
   LOBBY_W = Math.max(40, SHAFT_W * 1.5);
   BUILD_W = 30 + ELEV_COUNT * SHAFT_W + (ELEV_COUNT - 1) * SHAFT_GAP + 15 + LOBBY_W + 15;
   BUILD_X = (W - BUILD_W) / 2;
