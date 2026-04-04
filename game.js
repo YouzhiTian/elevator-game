@@ -65,7 +65,7 @@ function resize() {
   FLOOR_H = drawH / FLOORS;
   SHAFT_W = Math.min(56, W * 0.08);
   SHAFT_GAP = Math.min(10, W * 0.015);
-  LOBBY_W = Math.max(80, SHAFT_W * 3);
+  LOBBY_W = Math.max(40, SHAFT_W * 1.5);
   BUILD_W = 30 + ELEV_COUNT * SHAFT_W + (ELEV_COUNT - 1) * SHAFT_GAP + 15 + LOBBY_W + 15;
   BUILD_X = (W - BUILD_W) / 2;
 }
@@ -376,8 +376,9 @@ function update() {
       score = Math.max(0, score - 5);
       satisfaction = Math.max(0, satisfaction - 3);
       combo = 0; comboTimer = 0;
-      const lx_ = lobbyStartX();
-      addFloatText(lx_ + 10 + p.slot * (LOBBY_W / 4), floorY(p.floor) + FLOOR_H * 0.3, '-5', '#ef5350');
+      const totalShaftW_ = ELEV_COUNT * SHAFT_W + (ELEV_COUNT - 1) * SHAFT_GAP;
+      const shaftCX_ = shaftX(0) + totalShaftW_ / 2;
+      addFloatText(shaftCX_ - totalShaftW_ * 0.4 + p.slot * (totalShaftW_ / 3), floorY(p.floor) + FLOOR_H * 0.3, '-5', '#ef5350');
       sfxAngry();
     }
   }
@@ -788,9 +789,10 @@ function drawWaitingPeople() {
       ctx.globalAlpha = alpha;
     }
 
-    // position people in the lobby area (right of elevator shafts)
-    const lx = lobbyStartX();
-    const px = lx + 10 + p.slot * (LOBBY_W / 4);
+    // position people at the elevator shafts area
+    const totalShaftW = ELEV_COUNT * SHAFT_W + (ELEV_COUNT - 1) * SHAFT_GAP;
+    const shaftCenterX = shaftX(0) + totalShaftW / 2;
+    const px = shaftCenterX - totalShaftW * 0.4 + p.slot * (totalShaftW / 3);
     const fy = floorY(p.floor);
     const py = fy + FLOOR_H * 0.78;
     const bob = Math.sin(tick * 0.06 + p.bobOffset) * 1.2;
