@@ -2201,6 +2201,15 @@ function skipUpgrade() {
 
 function resumeAfterUpgrade() {
   document.getElementById('upgrade-overlay').classList.remove('show');
+  // if this is the first period of a new day, show day splash
+  if (periodIdx === 0) {
+    showDaySplash(() => { actuallyResumePeriod(); });
+  } else {
+    actuallyResumePeriod();
+  }
+}
+
+function actuallyResumePeriod() {
   FLOORS = periods[periodIdx].floors;
   resize();
   for (const e of elevators) {
@@ -2217,6 +2226,23 @@ function resumeAfterUpgrade() {
   eventCooldown = 15;
   buildMobileFloors();
   gameActive = true;
+}
+
+function showDaySplash(onDone) {
+  const el = document.getElementById('day-splash');
+  document.getElementById('ds-day').textContent = 'Day ' + currentDay;
+  const periodName = periods[0] ? periods[0].name : 'Morning';
+  document.getElementById('ds-sub').textContent = periodName + ' Rush';
+  document.getElementById('ds-floors').textContent = periods[0].floors + ' Floors';
+  el.classList.remove('out');
+  el.classList.add('show');
+  setTimeout(() => {
+    el.classList.add('out');
+    setTimeout(() => {
+      el.classList.remove('show', 'out');
+      if (onDone) onDone();
+    }, 400);
+  }, 1600);
 }
 
 // ====== INTERACTION ======
@@ -2452,6 +2478,9 @@ function startGame() {
   initGame();
   checkLandscapeHint();
   if (!animFrame) gameLoop(0);
+  // show Day 1 splash (game paused during splash)
+  gameActive = false;
+  showDaySplash(() => { gameActive = true; });
 }
 
 function gameLoop(timestamp) {
