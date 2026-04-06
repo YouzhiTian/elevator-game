@@ -1,12 +1,23 @@
 <!DOCTYPE html>
-<html lang="zh-CN">
+<html lang="en">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-<title>电梯调度员</title>
+<title>Elevator Dispatcher</title>
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
+
+<!-- ====== LOADING SCREEN ====== -->
+<div id="loading-screen">
+  <div class="load-content">
+    <div class="load-building">
+      <div class="load-shaft"></div>
+      <div class="load-cab"></div>
+    </div>
+    <div class="load-text">Loading...</div>
+  </div>
+</div>
 
 <!-- ====== START SCREEN ====== -->
 <div id="start-screen">
@@ -22,44 +33,42 @@
         <div class="lb-elev"></div>
       </div>
     </div>
-    <h1>电梯调度员</h1>
-    <p class="sub">Elevator Dispatcher</p>
+    <h1>Elevator Dispatcher</h1>
+    <p class="sub">Manage. Optimize. Deliver.</p>
 
     <div class="card">
-      <h3>📋 游戏简介</h3>
-      <p>管理一栋 <span class="hl">12层大楼</span> 的 <span class="hl">3部电梯</span>。</p>
-      <p>乘客不断出现，头顶显示目的楼层。合理调度，让所有人满意到达！</p>
-      <p>乘客等太久会 <span class="hl2">生气离开</span>，高效运送得 <span class="hl3">连击奖励</span>。</p>
-    </div>
-
-    <div class="card">
-      <h3>🎮 操作方式</h3>
-      <p>1. <span class="hl">点击电梯</span> 选中它（会高亮）</p>
-      <p>2. <span class="hl">点击楼层</span> 派电梯去那一层</p>
-      <p>3. 电梯到了自动 <span class="hl3">接人、送人</span></p>
-      <p>就这么简单！合理分配三部电梯就行。</p>
+      <h3>How to Play</h3>
+      <p>1. <span class="hl">Click an elevator</span> to select it (highlighted)</p>
+      <p>2. <span class="hl">Click a floor</span> to send it there</p>
+      <p>3. Elevators automatically <span class="hl3">pick up & drop off</span> passengers</p>
+      <p>Keep everyone happy across morning, lunch & evening rush!</p>
     </div>
 
     <div class="gc">
       <div class="gc-item">
-        <div class="gi">🌅</div>
-        <div class="gn">早高峰</div>
-        <div class="gd">上班族涌入<br>从1楼上行</div>
+        <div class="gi">sunrise</div>
+        <div class="gn">Morning</div>
+        <div class="gd">Workers arrive<br>Going UP</div>
       </div>
       <div class="gc-item">
-        <div class="gi">🍜</div>
-        <div class="gn">午间</div>
-        <div class="gd">下楼吃饭<br>下行暴增</div>
+        <div class="gi">lunch</div>
+        <div class="gn">Lunch</div>
+        <div class="gd">Lunch break<br>Going DOWN</div>
       </div>
       <div class="gc-item">
-        <div class="gi">🌙</div>
-        <div class="gn">晚高峰</div>
-        <div class="gd">全部下班<br>终极考验</div>
+        <div class="gi">night</div>
+        <div class="gn">Evening</div>
+        <div class="gd">Everyone leaves<br>ULTIMATE test</div>
       </div>
     </div>
 
-    <button id="btn-play" onclick="startGame()">开 始 调 度</button>
-    <p class="stip">完成三个时段即为通关</p>
+    <div id="high-score-display" class="card" style="display:none;">
+      <h3>Best Record</h3>
+      <p>Best Score: <span class="hl" id="hs-score">0</span> | Best Day: <span class="hl" id="hs-day">0</span></p>
+    </div>
+
+    <button id="btn-play" onclick="startGame()">START</button>
+    <p class="stip">Survive as many days as you can!</p>
   </div>
 </div>
 
@@ -71,52 +80,84 @@
   <div id="hud">
     <div class="hud-left">
       <div class="hud-item">
-        <span class="hud-label">分数</span>
+        <span class="hud-label">Score</span>
         <span class="hud-val" id="h-score">0</span>
       </div>
       <div class="hud-item">
-        <span class="hud-label">连击</span>
-        <span class="hud-val combo" id="h-combo">×1</span>
+        <span class="hud-label">Combo</span>
+        <span class="hud-val combo" id="h-combo">x1</span>
       </div>
     </div>
     <div class="hud-center">
-      <span class="period-name" id="h-period">早高峰 🌅</span>
+      <div class="hud-day" id="h-day">Day 1</div>
+      <span class="period-name" id="h-period">Morning</span>
       <div class="period-bar">
         <div class="period-fill" id="h-bar"></div>
       </div>
     </div>
     <div class="hud-right">
       <div class="hud-item">
-        <span class="hud-label">满意度</span>
+        <span class="hud-label">Satisfaction</span>
         <span class="hud-val satis" id="h-satis">100%</span>
       </div>
       <div class="hud-item">
-        <span class="hud-label">等待</span>
-        <span class="hud-val" id="h-waiting">0人</span>
+        <span class="hud-label">Waiting</span>
+        <span class="hud-val" id="h-waiting">0</span>
       </div>
+      <button class="hud-btn" id="btn-mute" onclick="toggleMute()" title="Toggle Sound">SFX</button>
+      <button class="hud-btn" id="btn-pause" onclick="togglePause()" title="Pause">II</button>
     </div>
   </div>
 
+  <!-- Event Banner -->
+  <div id="event-banner" class="event-banner"></div>
+
+  <!-- Mobile floor buttons -->
+  <div id="mobile-floors"></div>
+
   <!-- Bottom bar -->
   <div id="bottom-bar">
-    <div class="bar-hint">点击电梯选中 → 点击楼层派它去</div>
-    <div class="elev-status" id="es0"><span class="elev-dot" style="background:#4fc3f7"></span> A: <span id="ei0">1F·0人</span></div>
-    <div class="elev-status" id="es1"><span class="elev-dot" style="background:#81c784"></span> B: <span id="ei1">1F·0人</span></div>
-    <div class="elev-status" id="es2"><span class="elev-dot" style="background:#ba68c8"></span> C: <span id="ei2">1F·0人</span></div>
+    <div class="bar-hint">Click elevator to select > Click floor to dispatch</div>
+    <div class="elev-status" id="es0"><span class="elev-dot" style="background:#4fc3f7"></span> A: <span id="ei0">1F-0</span></div>
+    <div class="elev-status" id="es1"><span class="elev-dot" style="background:#81c784"></span> B: <span id="ei1">1F-0</span></div>
+    <div class="elev-status" id="es2"><span class="elev-dot" style="background:#ba68c8"></span> C: <span id="ei2">1F-0</span></div>
+  </div>
+
+  <!-- Mobile elevator selector (replaces tapping tiny cabs) -->
+  <div id="mobile-elev-bar">
+    <div class="me-btn selected" data-idx="0" style="--ec:#4fc3f7">A</div>
+    <div class="me-btn" data-idx="1" style="--ec:#81c784">B</div>
+    <div class="me-btn" data-idx="2" style="--ec:#ba68c8">C</div>
+  </div>
+
+  <!-- Landscape hint for portrait phones -->
+  <div id="landscape-hint">
+    <div class="lh-icon">&#8635;</div>
+    <div class="lh-text">Rotate for better experience</div>
+    <div class="lh-dismiss" onclick="dismissLandscapeHint()">OK</div>
+  </div>
+
+  <!-- Pause overlay -->
+  <div id="pause-overlay">
+    <div class="pause-box">
+      <h2>Paused</h2>
+      <button class="btn-main" onclick="togglePause()">Resume</button>
+      <button class="btn-secondary" onclick="goToMenu()">Main Menu</button>
+    </div>
   </div>
 
   <!-- Upgrade overlay -->
   <div id="upgrade-overlay">
     <div class="upgrade-box">
-      <h2 id="upg-title">时段完成！</h2>
+      <h2 id="upg-title">Period Complete!</h2>
       <div class="upg-stats">
-        <div class="upg-stat"><span class="upg-num" id="upg-score">0</span><span class="upg-lbl">得分</span></div>
-        <div class="upg-stat"><span class="upg-num" id="upg-delivered">0</span><span class="upg-lbl">运送</span></div>
-        <div class="upg-stat"><span class="upg-num" id="upg-combo">0</span><span class="upg-lbl">最高连击</span></div>
+        <div class="upg-stat"><span class="upg-num" id="upg-score">0</span><span class="upg-lbl">Score</span></div>
+        <div class="upg-stat"><span class="upg-num" id="upg-delivered">0</span><span class="upg-lbl">Delivered</span></div>
+        <div class="upg-stat"><span class="upg-num" id="upg-combo">0</span><span class="upg-lbl">Max Combo</span></div>
       </div>
-      <h3>选择升级</h3>
+      <h3>Choose an Upgrade</h3>
       <div class="upg-options" id="upg-options"></div>
-      <button class="upg-skip" onclick="skipUpgrade()">跳过 →</button>
+      <button class="upg-skip" onclick="skipUpgrade()">Skip</button>
     </div>
   </div>
 
@@ -124,15 +165,18 @@
   <div id="gameover-overlay">
     <div class="go-box">
       <div class="go-grade" id="go-grade">S</div>
-      <h2 id="go-title">调度完成！</h2>
+      <h2 id="go-title">Dispatch Complete!</h2>
       <div class="go-stats">
-        <div class="go-row"><span>最终得分</span><b id="go-score">0</b></div>
-        <div class="go-row"><span>运送乘客</span><b id="go-delivered">0</b></div>
-        <div class="go-row"><span>生气离开</span><b id="go-angry">0</b></div>
-        <div class="go-row"><span>最高连击</span><b id="go-combo">0</b></div>
-        <div class="go-row"><span>平均满意度</span><b id="go-satis">0%</b></div>
+        <div class="go-row"><span>Final Score</span><b id="go-score">0</b></div>
+        <div class="go-row"><span>Days Survived</span><b id="go-day">0</b></div>
+        <div class="go-row"><span>Passengers Delivered</span><b id="go-delivered">0</b></div>
+        <div class="go-row"><span>Left Angry</span><b id="go-angry">0</b></div>
+        <div class="go-row"><span>Max Combo</span><b id="go-combo">0</b></div>
+        <div class="go-row"><span>Avg Satisfaction</span><b id="go-satis">0%</b></div>
       </div>
-      <button class="btn-main" onclick="retryGame()">再来一局</button>
+      <div id="go-newbest" class="go-newbest" style="display:none">NEW BEST!</div>
+      <button class="btn-main" onclick="retryGame()">Play Again</button>
+      <button class="btn-secondary" onclick="goToMenu()">Main Menu</button>
     </div>
   </div>
 </div>

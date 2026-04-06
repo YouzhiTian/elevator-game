@@ -1,5 +1,6 @@
 // ============================================================
-//  电梯调度员 v2.0 — 全面升级版
+//  Elevator Dispatcher v3.0 — CrazyGames Ready
+//  deltaTime, endless day system, special events, high scores
 // ============================================================
 
 // ====== AUDIO ENGINE (Web Audio API) ======
@@ -26,6 +27,66 @@ function sfxCombo() { playTone(1047, 0.08, 'square', 0.06); setTimeout(() => pla
 function sfxAngry() { playTone(220, 0.2, 'sawtooth', 0.06); }
 function sfxClick() { playTone(440, 0.05, 'sine', 0.05); }
 function sfxUpgrade() { playTone(523, 0.1, 'sine', 0.08); setTimeout(() => playTone(659, 0.1, 'sine', 0.08), 80); setTimeout(() => playTone(784, 0.15, 'sine', 0.08), 160); }
+function sfxEvent() { playTone(660, 0.12, 'triangle', 0.1); setTimeout(() => playTone(880, 0.12, 'triangle', 0.08), 100); }
+
+// ====== BACKGROUND MUSIC (procedural looping ambient) ======
+let bgmPlaying = false;
+let bgmNodes = [];
+const BGM_CHORDS = [
+  [261.6, 329.6, 392.0],  // C major
+  [293.7, 370.0, 440.0],  // D minor-ish
+  [220.0, 277.2, 329.6],  // A minor
+  [246.9, 311.1, 370.0],  // B dim-ish
+  [261.6, 311.1, 392.0],  // C sus
+  [220.0, 293.7, 349.2],  // Dm7-ish
+];
+let bgmChordIdx = 0;
+let bgmInterval = null;
+
+function startBGM() {
+  if (bgmPlaying || !audioCtx) return;
+  bgmPlaying = true;
+  playBGMChord();
+  bgmInterval = setInterval(playBGMChord, 3200);
+}
+
+function playBGMChord() {
+  if (!audioCtx || !bgmPlaying) return;
+  const chord = BGM_CHORDS[bgmChordIdx % BGM_CHORDS.length];
+  bgmChordIdx++;
+  for (const freq of chord) {
+    const o = audioCtx.createOscillator();
+    const g = audioCtx.createGain();
+    o.type = 'sine';
+    o.frequency.value = freq * 0.5; // one octave lower for ambient feel
+    g.gain.setValueAtTime(0, audioCtx.currentTime);
+    g.gain.linearRampToValueAtTime(0.018, audioCtx.currentTime + 0.8);
+    g.gain.linearRampToValueAtTime(0.012, audioCtx.currentTime + 2.0);
+    g.gain.linearRampToValueAtTime(0, audioCtx.currentTime + 3.2);
+    o.connect(g); g.connect(audioCtx.destination);
+    o.start(); o.stop(audioCtx.currentTime + 3.3);
+  }
+  // occasional high sparkle note
+  if (Math.random() < 0.4) {
+    const sparkle = chord[Math.floor(Math.random() * chord.length)] * 2;
+    const o = audioCtx.createOscillator();
+    const g = audioCtx.createGain();
+    o.type = 'triangle';
+    o.frequency.value = sparkle;
+    g.gain.setValueAtTime(0, audioCtx.currentTime);
+    g.gain.linearRampToValueAtTime(0.015, audioCtx.currentTime + 0.1);
+    g.gain.linearRampToValueAtTime(0, audioCtx.currentTime + 1.5);
+    o.connect(g); g.connect(audioCtx.destination);
+    const delay = 0.8 + Math.random() * 1.5;
+    o.start(audioCtx.currentTime + delay);
+    o.stop(audioCtx.currentTime + delay + 1.6);
+  }
+}
+
+function stopBGM() {
+  bgmPlaying = false;
+  if (bgmInterval) { clearInterval(bgmInterval); bgmInterval = null; }
+}
 
 // ====== CONSTANTS ======
 let FLOORS = 12;
@@ -35,22 +96,26 @@ const BAR_H = 50;
 const ELEV_COLORS = ['#4fc3f7', '#81c784', '#ba68c8'];
 const ELEV_NAMES = ['A', 'B', 'C'];
 
-// Person appearance variety
 const PERSON_TYPES = [
-  { head: '#ffcc80', body: '#42a5f5', label: 'M' },  // businessman blue
-  { head: '#ffcc80', body: '#ef5350', label: 'F' },  // woman red
-  { head: '#ffcc80', body: '#66bb6a', label: 'M' },  // guy green
-  { head: '#d7ccc8', body: '#78909c', label: 'F' },  // elder gray
-  { head: '#ffcc80', body: '#ffa726', label: 'M' },  // casual orange
-  { head: '#ffcc80', body: '#ab47bc', label: 'F' },  // woman purple
-  { head: '#ffcc80', body: '#26c6da', label: 'M' },  // tech teal
-  { head: '#ffe0b2', body: '#ec407a', label: 'F' },  // girl pink
+  { head: '#ffcc80', body: '#42a5f5', pants: '#1565c0', hair: '#4e342e', hairStyle: 'short', label: 'M' },
+  { head: '#ffcc80', body: '#ef5350', pants: '#c62828', hair: '#5d4037', hairStyle: 'long',  label: 'F' },
+  { head: '#ffcc80', body: '#66bb6a', pants: '#33691e', hair: '#3e2723', hairStyle: 'short', label: 'M' },
+  { head: '#d7ccc8', body: '#78909c', pants: '#455a64', hair: '#9e9e9e', hairStyle: 'bun',   label: 'F' },
+  { head: '#ffcc80', body: '#ffa726', pants: '#4e342e', hair: '#3e2723', hairStyle: 'spiky', label: 'M' },
+  { head: '#ffcc80', body: '#ab47bc', pants: '#6a1b9a', hair: '#4e342e', hairStyle: 'long',  label: 'F' },
+  { head: '#ffcc80', body: '#26c6da', pants: '#00695c', hair: '#212121', hairStyle: 'short', label: 'M' },
+  { head: '#ffe0b2', body: '#ec407a', pants: '#880e4f', hair: '#5d4037', hairStyle: 'pony',  label: 'F' },
+  { head: '#8d6e63', body: '#fff176', pants: '#f9a825', hair: '#212121', hairStyle: 'short', label: 'M' },
+  { head: '#8d6e63', body: '#4dd0e1', pants: '#00838f', hair: '#212121', hairStyle: 'long',  label: 'F' },
+  { head: '#ffcc80', body: '#90a4ae', pants: '#37474f', hair: '#6d4c41', hairStyle: 'bald',  label: 'M' },
+  { head: '#ffe0b2', body: '#f48fb1', pants: '#ad1457', hair: '#d32f2f', hairStyle: 'bun',   label: 'F' },
 ];
 
-const PERIODS = [
-  { name: '早高峰 🌅', dur: 65, spawnRate: 0.4, type: 'morning', floors: 4, skyTop: '#1a2744', skyBot: '#ff8a65' },
-  { name: '午间 🍜', dur: 65, spawnRate: 0.7, type: 'lunch', floors: 8, skyTop: '#42a5f5', skyBot: '#81d4fa' },
-  { name: '晚高峰 🌙', dur: 70, spawnRate: 1.0, type: 'evening', floors: 12, skyTop: '#1a1a3e', skyBot: '#4a2060' },
+// Base periods — scaled by day
+const BASE_PERIODS = [
+  { name: 'Morning', dur: 65, spawnRate: 0.4, type: 'morning', baseFloors: 4, skyTop: '#1a2744', skyBot: '#ff8a65' },
+  { name: 'Lunch', dur: 65, spawnRate: 0.7, type: 'lunch', baseFloors: 8, skyTop: '#42a5f5', skyBot: '#81d4fa' },
+  { name: 'Evening', dur: 70, spawnRate: 1.0, type: 'evening', baseFloors: 12, skyTop: '#1a1a3e', skyBot: '#4a2060' },
 ];
 
 // ====== CANVAS ======
@@ -58,14 +123,22 @@ const cvs = document.getElementById('cvs');
 const ctx = cvs.getContext('2d');
 let W, H, FLOOR_H, BUILD_X, BUILD_W, SHAFT_W, SHAFT_GAP, LOBBY_W;
 
+const isMobile = ('ontouchstart' in window) || (navigator.maxTouchPoints > 0) || window.innerWidth < 600;
 function resize() {
   W = cvs.width = window.innerWidth;
   H = cvs.height = window.innerHeight;
   const drawH = H - HUD_H - BAR_H;
   FLOOR_H = drawH / FLOORS;
-  SHAFT_W = Math.min(90, W * 0.14);
-  SHAFT_GAP = Math.min(16, W * 0.025);
-  LOBBY_W = Math.max(40, SHAFT_W * 1.5);
+  // on mobile, make shafts wider for better tappability
+  if (isMobile) {
+    SHAFT_W = Math.min(90, W * 0.19);
+    SHAFT_GAP = Math.min(12, W * 0.02);
+    LOBBY_W = Math.max(30, SHAFT_W * 1.0);
+  } else {
+    SHAFT_W = Math.min(90, W * 0.14);
+    SHAFT_GAP = Math.min(16, W * 0.025);
+    LOBBY_W = Math.max(40, SHAFT_W * 1.5);
+  }
   BUILD_W = 30 + ELEV_COUNT * SHAFT_W + (ELEV_COUNT - 1) * SHAFT_GAP + 15 + LOBBY_W + 15;
   BUILD_X = (W - BUILD_W) / 2;
 }
@@ -82,57 +155,124 @@ let totalAngry = 0;
 let selectedElev = 0;
 let periodIdx = 0;
 let periodTimer = 0;
-let periodDurFrames = 0;
+let periodDur = 0; // in seconds
 let spawnAcc = 0;
 let gameActive = false;
 let tick = 0;
 let animFrame = null;
+let lastTime = 0;
 let satisAccum = 0;
 let satisCount = 0;
 let floatTexts = [];
 let particles = [];
 let combo = 0;
-let comboTimer = 0;
+let comboTimer = 0; // in seconds
 let maxCombo = 0;
 let hoveredFloor = -1;
-let skyTransition = 0; // 0-1 for sky color lerp
+let skyTransition = 0;
 let periodDelivered = 0;
 let periodCombo = 0;
+
+// Day system
+let currentDay = 1;
+let periods = [];
 
 // Upgrade state
 let elevSpeed = [2.8, 2.8, 2.8];
 let elevCap = [6, 6, 6];
 let upgrades = [];
+let doorSpeedMult = 1;
+let patienceMult = 1;
+let scoreMult = 1;
+
+// Tutorial state
+// Tutorial steps (guides through entire Morning period):
+// 0  = waiting for first person to appear
+// 1  = "click elevator to select"
+// 2  = "click a floor to send it"
+// 3  = "nice!" (2s then auto-advance)
+// 4  = "try using all 3 elevators" (wait until player selects a different elevator)
+// 5  = "watch the timer" (shown for 4s)
+// 6  = "passengers get angry if they wait too long" (shown when someone is orange)
+// 7  = "use keyboard 1/2/3 to switch fast" (shown for 5s)
+// 8  = "keep satisfaction above 0%" (shown for 4s)
+// 9  = "morning almost done!" (shown near end of period)
+// 10 = tutorial complete, fade out
+// -1 = fully done
+let tutorialStep = 0;
+let tutorialTimer = 0;
+let tutorialPulse = 0;
+let firstDeliveryDone = false;
+let tutorialElevSwitched = false;
+let tutorialAngryShown = false;
+
+// Special events
+let activeEvent = null;
+let eventTimer = 0; // seconds
+let eventCooldown = 0; // seconds
+let brokenElevIdx = -1;
+
+// High score (localStorage with try/catch for incognito)
+let highScore = 0;
+let highDay = 0;
+function loadHighScore() {
+  try {
+    highScore = parseInt(localStorage.getItem('ed_highscore')) || 0;
+    highDay = parseInt(localStorage.getItem('ed_highday')) || 0;
+  } catch (e) { /* incognito */ }
+}
+function saveHighScore() {
+  try {
+    if (score > highScore) localStorage.setItem('ed_highscore', score);
+    if (currentDay > highDay) localStorage.setItem('ed_highday', currentDay);
+  } catch (e) { /* incognito */ }
+}
+loadHighScore();
+
+// Show high score on start screen
+function showHighScoreOnStart() {
+  if (highScore > 0) {
+    document.getElementById('high-score-display').style.display = 'block';
+    document.getElementById('hs-score').textContent = highScore;
+    document.getElementById('hs-day').textContent = highDay;
+  }
+}
+showHighScoreOnStart();
 
 // ====== HELPERS ======
 function floorY(f) { return HUD_H + (FLOORS - f) * FLOOR_H; }
-
-function shaftX(i) {
-  return BUILD_X + 20 + i * (SHAFT_W + SHAFT_GAP);
-}
-
-function lobbyStartX() {
-  return BUILD_X + 20 + ELEV_COUNT * SHAFT_W + (ELEV_COUNT - 1) * SHAFT_GAP + 15;
-}
-
+function shaftX(i) { return BUILD_X + 20 + i * (SHAFT_W + SHAFT_GAP); }
+function lobbyStartX() { return BUILD_X + 20 + ELEV_COUNT * SHAFT_W + (ELEV_COUNT - 1) * SHAFT_GAP + 15; }
 function randInt(a, b) { return a + Math.floor(Math.random() * (b - a + 1)); }
-
 function lerp(a, b, t) { return a + (b - a) * t; }
-
 function lerpColor(c1, c2, t) {
-  // parse hex
   const r1 = parseInt(c1.slice(1,3),16), g1 = parseInt(c1.slice(3,5),16), b1 = parseInt(c1.slice(5,7),16);
   const r2 = parseInt(c2.slice(1,3),16), g2 = parseInt(c2.slice(3,5),16), b2 = parseInt(c2.slice(5,7),16);
   const r = Math.round(lerp(r1,r2,t)), g = Math.round(lerp(g1,g2,t)), b = Math.round(lerp(b1,b2,t));
   return `rgb(${r},${g},${b})`;
 }
 
-function easeInOut(t) { return t < 0.5 ? 2*t*t : -1+(4-2*t)*t; }
+// ====== DAY/PERIOD GENERATION ======
+function generatePeriods(day) {
+  const diffScale = 1 + (day - 1) * 0.15; // 15% harder each day
+  return BASE_PERIODS.map(bp => ({
+    name: bp.name,
+    dur: bp.dur + (day - 1) * 5, // longer days
+    spawnRate: Math.min(bp.spawnRate * diffScale, 3.0),
+    type: bp.type,
+    floors: Math.min(bp.baseFloors + (day - 1) * 2, 20), // max 20 floors
+    skyTop: bp.skyTop,
+    skyBot: bp.skyBot,
+  }));
+}
 
 // ====== INIT ======
 function initGame() {
-  selectedElev = 0; periodIdx = 0;
-  FLOORS = PERIODS[0].floors;
+  currentDay = 1;
+  periods = generatePeriods(1);
+  selectedElev = 0;
+  periodIdx = 0;
+  FLOORS = periods[0].floors;
   resize();
   elevators = [];
   for (let i = 0; i < ELEV_COUNT; i++) {
@@ -147,8 +287,8 @@ function initGame() {
   waitingPeople = [];
   score = 0; satisfaction = 100;
   totalDelivered = 0; totalAngry = 0;
-  periodDurFrames = PERIODS[0].dur * 60;
-  periodTimer = periodDurFrames;
+  periodDur = periods[0].dur;
+  periodTimer = periodDur;
   spawnAcc = 0; tick = 0;
   gameActive = true;
   floatTexts = []; particles = [];
@@ -157,15 +297,24 @@ function initGame() {
   skyTransition = 0;
   elevSpeed = [2.8, 2.8, 2.8];
   elevCap = [6, 6, 6];
+  doorSpeedMult = 1;
+  patienceMult = 1;
+  scoreMult = 1;
   periodDelivered = 0; periodCombo = 0;
+  activeEvent = null; eventTimer = 0; eventCooldown = 15;
+  brokenElevIdx = -1;
+  lastTime = 0;
+  tutorialStep = 0; tutorialTimer = 0; tutorialPulse = 0; firstDeliveryDone = false; tutorialElevSwitched = false; tutorialAngryShown = false;
+  buildMobileFloors();
   updateHUD();
   document.getElementById('gameover-overlay').classList.remove('show');
   document.getElementById('upgrade-overlay').classList.remove('show');
+  hideEventBanner();
 }
 
 // ====== SPAWN PEOPLE ======
 function spawnPerson() {
-  const period = PERIODS[periodIdx];
+  const period = periods[periodIdx];
   let fromFloor, toFloor;
 
   if (period.type === 'morning') {
@@ -183,53 +332,61 @@ function spawnPerson() {
   }
 
   const maxOnFloor = waitingPeople.filter(p => p.floor === fromFloor).length;
-  if (maxOnFloor >= 3) return;
+  if (maxOnFloor >= 4) return;
 
-  const isVIP = Math.random() < 0.08;
+  const isVIP = Math.random() < 0.08 + currentDay * 0.01;
+  const basePatience = isVIP ? 10 + Math.random() * 5 : 15 + Math.random() * 10; // seconds
   waitingPeople.push({
     floor: fromFloor, dest: toFloor,
-    waitTime: 0, maxWait: isVIP ? 600 + Math.random()*300 : 900 + Math.random()*600,
+    waitTime: 0, maxWait: basePatience * patienceMult,
     type: PERSON_TYPES[randInt(0, PERSON_TYPES.length - 1)],
     angry: false, leaving: false, leaveTimer: 0,
     bobOffset: Math.random() * Math.PI * 2,
     slot: maxOnFloor,
     vip: isVIP,
-    enterAnim: 1.0 // 1 -> 0 for slide-in
+    enterAnim: 1.0
   });
 }
 
 // ====== ELEVATOR LOGIC ======
 function sendElevToFloor(elevIdx, floor) {
   const e = elevators[elevIdx];
+  if (brokenElevIdx === elevIdx) return; // broken elevator can't move
   if (floor < 1 || floor > FLOORS) return;
   if (!e.queue.includes(floor) && e.floor !== floor) {
     e.queue.push(floor);
     sfxClick();
   } else if (e.floor === floor && e.doorOpen <= 0) {
-    // re-open door if already there
-    e.doorOpen = 55;
+    e.doorOpen = 0.9;
     handleArrival(e);
     sfxDing();
   }
 }
 
-function updateElevator(e) {
-  // door animation
+function updateElevator(e, dt) {
+  // Broken elevator: flash and skip
+  if (brokenElevIdx === e.idx) {
+    e.doorAnim = 0;
+    return;
+  }
+
+  // door animation (in seconds)
   if (e.doorOpen > 0) {
-    e.doorAnim = Math.min(1, e.doorAnim + 0.06);
-    e.doorOpen--;
-    if (e.doorOpen === 0) {
+    e.doorAnim = Math.min(1, e.doorAnim + 3.6 * doorSpeedMult * dt);
+    e.doorOpen -= dt;
+    if (e.doorOpen <= 0) {
+      e.doorOpen = 0;
       e.doorAnim = 0;
     }
     return;
   }
-  e.doorAnim = Math.max(0, e.doorAnim - 0.08);
+  e.doorAnim = Math.max(0, e.doorAnim - 4.8 * doorSpeedMult * dt);
 
-  // auto-pickup: if idle on a floor with waiting people, open doors
+  // auto-pickup: if idle on a floor with waiting people
   if (!e.moving && e.queue.length === 0 && e.passengers.length < elevCap[e.idx]) {
     const waiting = waitingPeople.filter(p => p.floor === e.floor && !p.angry && !p.leaving);
     if (waiting.length > 0) {
-      e.doorOpen = 55;
+      e.doorOpen = 0.9;
       e.doorAnim = 0;
       handleArrival(e);
       sfxDing();
@@ -244,8 +401,7 @@ function updateElevator(e) {
 
   if (e.moving) {
     const ty = floorY(e.targetFloor);
-    const speed = elevSpeed[e.idx];
-    // acceleration/deceleration feel
+    const speed = elevSpeed[e.idx] * 60 * dt; // convert to per-frame equivalent
     const dist = Math.abs(e.y - ty);
     const accelSpeed = dist < FLOOR_H * 0.5 ? speed * 0.6 : speed;
 
@@ -254,7 +410,7 @@ function updateElevator(e) {
       e.floor = e.targetFloor;
       e.moving = false;
       e.queue.shift();
-      e.doorOpen = 55;
+      e.doorOpen = 0.9;
       e.doorAnim = 0;
       handleArrival(e);
       sfxDing();
@@ -274,16 +430,14 @@ function updateElevator(e) {
           ((dir > 0 && p.dest > e.floor) || (dir < 0 && p.dest < e.floor))
         );
         if (waiting.length > 0) {
-          // stop at this floor to pick up
           e.y = fy;
           e.moving = false;
-          // insert current target back if not this floor
           if (e.targetFloor !== e.floor) {
             e.queue.unshift(e.targetFloor);
           } else {
             e.queue.shift();
           }
-          e.doorOpen = 55;
+          e.doorOpen = 0.9;
           e.doorAnim = 0;
           handleArrival(e);
           sfxDing();
@@ -300,21 +454,22 @@ function handleArrival(e) {
   // drop off
   const dropoff = e.passengers.filter(p => p.dest === e.floor);
   for (const p of dropoff) {
-    const pts = p.vip ? 25 : 10;
+    const pts = (p.vip ? 25 : 10) * scoreMult;
     const comboMult = Math.min(combo + 1, 5);
-    const total = pts * comboMult;
+    const total = Math.round(pts * comboMult);
     score += total;
     totalDelivered++;
     periodDelivered++;
+    if (!firstDeliveryDone) { firstDeliveryDone = true; tutorialStep = 3; tutorialTimer = 0; }
     combo++;
-    comboTimer = 180; // 3 seconds to keep combo
+    comboTimer = 3; // 3 seconds
     if (combo > maxCombo) maxCombo = combo;
     if (combo > periodCombo) periodCombo = combo;
 
     addFloatText(sx, e.y + 5, `+${total}`, combo >= 3 ? '#ffd54f' : '#a5d6a7');
     if (combo >= 3 && combo % 3 === 0) {
       sfxCombo();
-      addFloatText(sx, e.y - 15, `${combo}连击!`, '#ffd54f', 18);
+      addFloatText(sx, e.y - 15, `${combo} COMBO!`, '#ffd54f', 18);
       spawnBurst(sx, e.y + FLOOR_H / 2, combo >= 6 ? '#ffd54f' : '#4fc3f7', 12);
     } else {
       sfxDeliver();
@@ -334,43 +489,169 @@ function handleArrival(e) {
       e.queue.push(p.dest);
     }
   }
-  // sort queue smartly — direction-aware
   if (e.queue.length > 1) {
     const dir = e.passengers.length > 0 ? (e.passengers[0].dest > e.floor ? 1 : -1) : 1;
-    e.queue.sort((a, b) => {
-      if (dir > 0) return a - b;
-      return b - a;
-    });
+    e.queue.sort((a, b) => dir > 0 ? a - b : b - a);
   }
 }
 
+// ====== SPECIAL EVENTS ======
+const EVENT_TYPES = [
+  { name: 'VIP Rush', desc: 'VIP visitors incoming!', color: '#ffd54f', duration: 8 },
+  { name: 'Rush Hour', desc: 'Double the passengers!', color: '#ef5350', duration: 10 },
+  { name: 'Elevator Down', desc: 'An elevator is broken!', color: '#ff7043', duration: 8 },
+  { name: 'Happy Hour', desc: 'Passengers are more patient!', color: '#66bb6a', duration: 12 },
+  { name: 'Score Frenzy', desc: 'Double points!', color: '#ba68c8', duration: 10 },
+];
+
+function triggerRandomEvent() {
+  const pool = EVENT_TYPES.slice();
+  const evt = pool[randInt(0, pool.length - 1)];
+  activeEvent = { ...evt };
+  eventTimer = evt.duration;
+
+  if (evt.name === 'Elevator Down') {
+    brokenElevIdx = randInt(0, ELEV_COUNT - 1);
+    // force stop the broken elevator
+    const be = elevators[brokenElevIdx];
+    be.moving = false; be.queue = [];
+    activeEvent.desc = `Elevator ${ELEV_NAMES[brokenElevIdx]} is broken!`;
+  }
+
+  sfxEvent();
+  showEventBanner(activeEvent.desc, activeEvent.color);
+}
+
+function updateEvents(dt) {
+  if (activeEvent) {
+    eventTimer -= dt;
+    if (eventTimer <= 0) {
+      // end event
+      if (activeEvent.name === 'Elevator Down') brokenElevIdx = -1;
+      activeEvent = null;
+      eventTimer = 0;
+      hideEventBanner();
+    }
+  } else {
+    eventCooldown -= dt;
+    if (eventCooldown <= 0 && currentDay >= 1 && tutorialStep < 0) {
+      // trigger event with some randomness
+      if (Math.random() < 0.3) {
+        triggerRandomEvent();
+      }
+      eventCooldown = 20 + Math.random() * 15; // 20-35 seconds between events
+    }
+  }
+}
+
+function getEventSpawnMult() {
+  if (!activeEvent) return 1;
+  if (activeEvent.name === 'Rush Hour') return 2;
+  if (activeEvent.name === 'VIP Rush') return 1.5;
+  return 1;
+}
+
+function getEventVIPBoost() {
+  return activeEvent && activeEvent.name === 'VIP Rush' ? 0.4 : 0;
+}
+
+function getEventPatienceMult() {
+  return activeEvent && activeEvent.name === 'Happy Hour' ? 1.5 : 1;
+}
+
+function getEventScoreMult() {
+  return activeEvent && activeEvent.name === 'Score Frenzy' ? 2 : 1;
+}
+
+function showEventBanner(text, color) {
+  const el = document.getElementById('event-banner');
+  el.textContent = text;
+  el.style.background = color + 'dd';
+  el.classList.add('show');
+}
+function hideEventBanner() {
+  document.getElementById('event-banner').classList.remove('show');
+}
+
 // ====== UPDATE ======
-function update() {
-  tick++;
-  const period = PERIODS[periodIdx];
+function update(dt) {
+  tick += dt * 60; // keep tick for visual animations
+  const period = periods[periodIdx];
 
   // sky transition
-  skyTransition = 1 - (periodTimer / periodDurFrames);
+  skyTransition = 1 - (periodTimer / periodDur);
 
   // spawn
-  spawnAcc += period.spawnRate / 60;
-  while (spawnAcc >= 1) { spawnPerson(); spawnAcc -= 1; }
+  const spawnMult = getEventSpawnMult();
+  spawnAcc += period.spawnRate * spawnMult * dt;
+  while (spawnAcc >= 1) {
+    spawnPerson();
+    spawnAcc -= 1;
+  }
+
+  // tutorial progression
+  if (tutorialStep >= 0) {
+    tutorialPulse += dt * 4;
+    if (tutorialStep === 0 && waitingPeople.length > 0) {
+      tutorialStep = 1; tutorialTimer = 0;
+    }
+    // step 3: "Nice!" auto-advance to step 4 after 2s
+    if (tutorialStep === 3 && tutorialTimer >= 2) {
+      tutorialStep = 4; tutorialTimer = 0;
+    }
+    // step 4: "Try all 3 elevators" — advanced by click handler when switching
+    // step 5: "Watch the timer" auto-advance after 4s
+    if (tutorialStep === 5 && tutorialTimer >= 4) {
+      tutorialStep = 6; tutorialTimer = 0;
+    }
+    // step 6: "Passengers get angry" — check if someone is getting impatient
+    if (tutorialStep === 6) {
+      const impatient = waitingPeople.find(p => !p.angry && !p.leaving && p.waitTime > p.maxWait * 0.5);
+      if (impatient || tutorialTimer >= 5) { tutorialAngryShown = true; }
+      if (tutorialAngryShown && tutorialTimer >= 3) {
+        tutorialStep = 7; tutorialTimer = 0;
+      }
+    }
+    // step 7: "Use keyboard 1/2/3" auto-advance after 4s
+    if (tutorialStep === 7 && tutorialTimer >= 4) {
+      tutorialStep = 8; tutorialTimer = 0;
+    }
+    // step 8: "Keep satisfaction above 0%" auto-advance after 4s
+    if (tutorialStep === 8 && tutorialTimer >= 4) {
+      tutorialStep = 9; tutorialTimer = 0;
+    }
+    // step 9: "Morning almost done!" — show when <30% time left
+    if (tutorialStep === 9 && periodTimer > periodDur * 0.3) {
+      // wait until near end of morning, don't count timer yet
+    } else if (tutorialStep === 9 && tutorialTimer >= 3) {
+      tutorialStep = 10; tutorialTimer = 0;
+    }
+    // step 10: "You're ready!" fade out
+    if (tutorialStep === 10 && tutorialTimer >= 2.5) {
+      tutorialStep = -1;
+    }
+    if (tutorialStep >= 0) tutorialTimer += dt;
+  }
 
   // combo decay
-  if (comboTimer > 0) { comboTimer--; }
+  if (comboTimer > 0) { comboTimer -= dt; }
   else if (combo > 0) { combo = 0; }
+
+  // update events
+  updateEvents(dt);
 
   // update waiting
   for (let i = waitingPeople.length - 1; i >= 0; i--) {
     const p = waitingPeople[i];
     if (p.leaving) {
-      p.leaveTimer++;
-      if (p.leaveTimer > 30) waitingPeople.splice(i, 1);
+      p.leaveTimer += dt;
+      if (p.leaveTimer > 0.5) waitingPeople.splice(i, 1);
       continue;
     }
-    if (p.enterAnim > 0) p.enterAnim = Math.max(0, p.enterAnim - 0.05);
-    p.waitTime++;
-    if (p.waitTime >= p.maxWait && !p.angry) {
+    if (p.enterAnim > 0) p.enterAnim = Math.max(0, p.enterAnim - 3 * dt);
+    p.waitTime += dt;
+    const effectiveMaxWait = p.maxWait * getEventPatienceMult();
+    if (p.waitTime >= effectiveMaxWait && !p.angry) {
       p.angry = true; p.leaving = true; p.leaveTimer = 0;
       totalAngry++;
       score = Math.max(0, score - 5);
@@ -389,42 +670,48 @@ function update() {
   }
 
   // update elevators
-  for (const e of elevators) updateElevator(e);
+  for (const e of elevators) updateElevator(e, dt);
 
   // satisfaction
   const waitCount = waitingPeople.filter(p => !p.angry).length;
   const avgWait = waitCount > 0 ? waitingPeople.filter(p => !p.angry).reduce((s, p) => s + p.waitTime, 0) / waitCount : 0;
-  if (avgWait > 300) satisfaction = Math.max(0, satisfaction - 0.02);
-  else if (avgWait < 100 && satisfaction < 100) satisfaction = Math.min(100, satisfaction + 0.01);
+  if (avgWait > 5) satisfaction = Math.max(0, satisfaction - 1.2 * dt);
+  else if (avgWait < 1.7 && satisfaction < 100) satisfaction = Math.min(100, satisfaction + 0.6 * dt);
   satisAccum += satisfaction; satisCount++;
 
-  // fail condition: satisfaction hits 0
+  // fail condition
   if (satisfaction <= 0) {
     endGame(true);
     return;
   }
 
   // float texts
-  for (const ft of floatTexts) { ft.y -= 0.8; ft.life--; ft.scale = Math.min(1, ft.life / 10); }
+  for (const ft of floatTexts) { ft.y -= 48 * dt; ft.life -= dt; ft.scale = Math.min(1, ft.life / 0.17); }
   floatTexts = floatTexts.filter(f => f.life > 0);
 
   // particles
   for (const p of particles) {
-    p.x += p.vx; p.y += p.vy; p.vy += 0.06;
-    p.life--; p.size *= 0.97;
+    p.x += p.vx * 60 * dt; p.y += p.vy * 60 * dt; p.vy += 3.6 * dt;
+    p.life -= dt; p.size *= Math.pow(0.97, 60 * dt);
   }
   particles = particles.filter(p => p.life > 0);
 
+  // apply event score mult temporarily
+  scoreMult = getEventScoreMult();
+
   // period timer
-  periodTimer--;
+  periodTimer -= dt;
   if (periodTimer <= 0) {
     periodIdx++;
-    if (periodIdx >= PERIODS.length) {
-      endGame();
+    if (periodIdx >= periods.length) {
+      // Day complete! Start next day
+      currentDay++;
+      periods = generatePeriods(currentDay);
+      periodIdx = 0;
+      showUpgradeScreen(true); // day transition
       return;
     }
-    // show upgrade screen
-    showUpgradeScreen();
+    showUpgradeScreen(false);
     return;
   }
 
@@ -433,7 +720,7 @@ function update() {
 
 // ====== EFFECTS ======
 function addFloatText(x, y, text, color, size) {
-  floatTexts.push({ x, y, text, color, life: 50, size: size || 14, scale: 1 });
+  floatTexts.push({ x, y, text, color, life: 0.83, size: size || 14, scale: 1 });
 }
 
 function spawnBurst(x, y, color, count) {
@@ -442,32 +729,21 @@ function spawnBurst(x, y, color, count) {
     const spd = 1 + Math.random() * 3;
     particles.push({
       x, y, vx: Math.cos(a)*spd, vy: Math.sin(a)*spd - 1.5,
-      life: 20 + Math.random()*15, color, size: 2 + Math.random()*3
+      life: 0.33 + Math.random()*0.25, color, size: 2 + Math.random()*3
     });
   }
 }
 
 // ====== RENDER ======
 function render() {
-  // --- Sky ---
   drawSky();
-
-  // --- City silhouette ---
   drawCitySilhouette();
-
-  // --- Building ---
   drawBuilding();
-
-  // --- Elevator shafts (background, behind people) ---
   drawElevatorShafts();
-
-  // --- Waiting people ---
   drawWaitingPeople();
-
-  // --- Elevator cabs (on top, covers people when arriving) ---
   drawElevatorCabs();
 
-  // --- Floor hover highlight ---
+  // floor hover
   if (hoveredFloor > 0 && hoveredFloor <= FLOORS) {
     const fy = floorY(hoveredFloor);
     ctx.fillStyle = 'rgba(79,195,247,0.06)';
@@ -477,14 +753,13 @@ function render() {
     ctx.strokeRect(BUILD_X, fy, BUILD_W, FLOOR_H);
   }
 
-  // --- Float texts ---
+  // float texts
   for (const ft of floatTexts) {
-    const alpha = Math.min(1, ft.life / 15);
+    const alpha = Math.min(1, ft.life / 0.25);
     ctx.globalAlpha = alpha;
     ctx.font = `bold ${ft.size}px -apple-system, sans-serif`;
     ctx.textAlign = 'center';
     ctx.fillStyle = ft.color;
-    // shadow
     ctx.shadowColor = ft.color;
     ctx.shadowBlur = 8;
     ctx.fillText(ft.text, ft.x, ft.y);
@@ -492,20 +767,223 @@ function render() {
   }
   ctx.globalAlpha = 1;
 
-  // --- Particles ---
+  // particles
   for (const p of particles) {
-    ctx.globalAlpha = Math.min(1, p.life / 10);
+    ctx.globalAlpha = Math.min(1, p.life / 0.17);
     ctx.fillStyle = p.color;
     ctx.beginPath();
     ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
     ctx.fill();
   }
   ctx.globalAlpha = 1;
+
+  // danger vignette when satisfaction is low
+  drawDangerVignette();
+
+  // tutorial overlay
+  drawTutorial();
+
+  // pause dim
+  if (paused) {
+    ctx.fillStyle = 'rgba(6,10,20,0.3)';
+    ctx.fillRect(0, 0, W, H);
+  }
+}
+
+function drawDangerVignette() {
+  if (satisfaction >= 60) return;
+  const intensity = 1 - satisfaction / 60; // 0 at 60%, 1 at 0%
+  const pulse = Math.sin(tick * 0.12) * 0.3 + 0.7;
+  const alpha = intensity * 0.35 * pulse;
+
+  // red vignette from edges
+  const grad = ctx.createRadialGradient(W/2, H/2, H * 0.3, W/2, H/2, H * 0.8);
+  grad.addColorStop(0, 'transparent');
+  grad.addColorStop(1, `rgba(200,30,30,${alpha})`);
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, W, H);
+}
+
+function drawTutorial() {
+  if (tutorialStep < 0) return;
+
+  const pulse = (Math.sin(tutorialPulse) * 0.5 + 0.5); // 0-1 pulsing
+
+  if (tutorialStep === 1) {
+    // highlight elevator A — pulsing ring around it
+    const e = elevators[0];
+    const sx = shaftX(0);
+    const cabY = e.y;
+    const cabH = FLOOR_H - 4;
+    const cx = sx + SHAFT_W / 2;
+    const cy = cabY + cabH / 2;
+    const radius = Math.max(SHAFT_W, cabH) * 0.6 + pulse * 6;
+
+    // ring
+    ctx.strokeStyle = `rgba(79,195,247,${0.4 + pulse * 0.4})`;
+    ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.arc(cx, cy, radius, 0, Math.PI * 2); ctx.stroke();
+
+    // arrow pointing down to elevator
+    const arrowX = cx;
+    const arrowY = cabY - 25 - pulse * 5;
+    ctx.fillStyle = '#4fc3f7';
+    ctx.beginPath();
+    ctx.moveTo(arrowX, arrowY + 12);
+    ctx.lineTo(arrowX - 8, arrowY);
+    ctx.lineTo(arrowX + 8, arrowY);
+    ctx.closePath();
+    ctx.fill();
+
+    // text bubble
+    drawTutorialBubble(cx, arrowY - 28, 'Click elevator to select');
+  }
+
+  if (tutorialStep === 2) {
+    // highlight floor with waiting person
+    const person = waitingPeople.find(p => !p.angry && !p.leaving);
+    if (person) {
+      const fy = floorY(person.floor);
+      // highlight the floor
+      ctx.fillStyle = `rgba(255,213,79,${0.05 + pulse * 0.08})`;
+      ctx.fillRect(BUILD_X, fy, BUILD_W, FLOOR_H);
+      ctx.strokeStyle = `rgba(255,213,79,${0.3 + pulse * 0.4})`;
+      ctx.lineWidth = 2;
+      ctx.strokeRect(BUILD_X, fy, BUILD_W, FLOOR_H);
+
+      // arrow + text
+      const cx = BUILD_X + BUILD_W / 2;
+      const arrowY = fy - 10 - pulse * 5;
+      ctx.fillStyle = '#ffd54f';
+      ctx.beginPath();
+      ctx.moveTo(cx, arrowY + 12);
+      ctx.lineTo(cx - 8, arrowY);
+      ctx.lineTo(cx + 8, arrowY);
+      ctx.closePath();
+      ctx.fill();
+
+      drawTutorialBubble(cx, arrowY - 28, 'Click this floor to send elevator');
+    } else {
+      // no person yet, show generic hint
+      drawTutorialBubble(W / 2, H / 2, 'Click a floor to dispatch');
+    }
+  }
+
+  if (tutorialStep === 3) {
+    // brief "Nice!" message then advance to step 4
+    const alpha = Math.max(0, 1 - tutorialTimer / 1.5);
+    ctx.globalAlpha = Math.max(0.2, alpha);
+    drawTutorialBubble(W / 2, H * 0.35, 'Nice! You got it!');
+    ctx.globalAlpha = 1;
+  }
+
+  if (tutorialStep === 4) {
+    // highlight elevators B and C
+    for (let i = 1; i < ELEV_COUNT; i++) {
+      const e = elevators[i];
+      const sx = shaftX(i);
+      const cabY = e.y;
+      const cabH = FLOOR_H - 4;
+      const cx = sx + SHAFT_W / 2;
+      const cy = cabY + cabH / 2;
+      const radius = Math.max(SHAFT_W, cabH) * 0.6 + pulse * 6;
+      ctx.strokeStyle = `rgba(129,199,132,${0.3 + pulse * 0.4})`;
+      ctx.lineWidth = 3;
+      ctx.beginPath(); ctx.arc(cx, cy, radius, 0, Math.PI * 2); ctx.stroke();
+    }
+    drawTutorialBubble(W / 2, H * 0.25, 'Try selecting all 3 elevators!');
+  }
+
+  if (tutorialStep === 5) {
+    // highlight the period timer bar
+    // draw arrow pointing to HUD center area
+    const cx = W / 2;
+    const arrowY = HUD_H + 8 + pulse * 4;
+    ctx.fillStyle = '#ffd54f';
+    ctx.beginPath();
+    ctx.moveTo(cx, arrowY - 8);
+    ctx.lineTo(cx - 8, arrowY + 4);
+    ctx.lineTo(cx + 8, arrowY + 4);
+    ctx.closePath();
+    ctx.fill();
+    drawTutorialBubble(W / 2, arrowY + 22, 'Watch the timer — deliver before it runs out!');
+  }
+
+  if (tutorialStep === 6) {
+    // highlight angry passenger or warn about patience
+    const impatient = waitingPeople.find(p => !p.angry && !p.leaving && p.waitTime > p.maxWait * 0.4);
+    if (impatient) {
+      const fy = floorY(impatient.floor);
+      ctx.strokeStyle = `rgba(239,83,80,${0.3 + pulse * 0.5})`;
+      ctx.lineWidth = 2;
+      ctx.strokeRect(BUILD_X, fy, BUILD_W, FLOOR_H);
+    }
+    drawTutorialBubble(W / 2, H * 0.3, 'Passengers get angry if they wait too long!');
+  }
+
+  if (tutorialStep === 7) {
+    // keyboard hint
+    drawTutorialBubble(W / 2, H * 0.35, 'Tip: Press 1, 2, 3 to quickly switch elevators');
+  }
+
+  if (tutorialStep === 8) {
+    // highlight satisfaction meter
+    const arrowX = W - 80;
+    const arrowY = HUD_H + 8 + pulse * 4;
+    ctx.fillStyle = '#ef5350';
+    ctx.beginPath();
+    ctx.moveTo(arrowX, arrowY - 8);
+    ctx.lineTo(arrowX - 8, arrowY + 4);
+    ctx.lineTo(arrowX + 8, arrowY + 4);
+    ctx.closePath();
+    ctx.fill();
+    drawTutorialBubble(W / 2, arrowY + 22, 'Keep satisfaction above 0% or game over!');
+  }
+
+  if (tutorialStep === 9) {
+    drawTutorialBubble(W / 2, H * 0.35, 'Morning rush almost done — keep it up!');
+  }
+
+  if (tutorialStep === 10) {
+    const alpha = Math.max(0, 1 - tutorialTimer / 2);
+    ctx.globalAlpha = Math.max(0, alpha);
+    drawTutorialBubble(W / 2, H * 0.35, "You're ready! Good luck!");
+    ctx.globalAlpha = 1;
+  }
+}
+
+function drawTutorialBubble(x, y, text) {
+  ctx.font = 'bold 14px -apple-system, sans-serif';
+  const metrics = ctx.measureText(text);
+  const tw = metrics.width;
+  const padX = 14;
+  const bw = tw + padX * 2;
+  const bh = 28;
+  const bx = x - bw / 2;
+  const by = y - bh / 2;
+
+  // background
+  ctx.fillStyle = 'rgba(0,0,0,0.75)';
+  roundRect(ctx, bx, by, bw, bh, 8);
+  ctx.fill();
+
+  // border
+  ctx.strokeStyle = 'rgba(79,195,247,0.5)';
+  ctx.lineWidth = 1.5;
+  roundRect(ctx, bx, by, bw, bh, 8);
+  ctx.stroke();
+
+  // text
+  ctx.fillStyle = '#fff';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(text, x, y);
+  ctx.textBaseline = 'alphabetic';
 }
 
 function drawSky() {
-  const period = PERIODS[periodIdx];
-  const nextPeriod = PERIODS[Math.min(periodIdx + 1, PERIODS.length - 1)];
+  const period = periods[periodIdx];
+  const nextPeriod = periods[Math.min(periodIdx + 1, periods.length - 1)];
   const t = Math.min(1, skyTransition);
 
   const topColor = lerpColor(period.skyTop, nextPeriod.skyTop, t * 0.3);
@@ -518,7 +996,7 @@ function drawSky() {
   ctx.fillStyle = sky;
   ctx.fillRect(0, 0, W, H);
 
-  // stars (visible in evening)
+  // stars
   if (periodIdx === 2 || periodIdx === 0) {
     const starAlpha = periodIdx === 2 ? 0.6 : 0.25;
     ctx.fillStyle = `rgba(255,255,255,${starAlpha})`;
@@ -535,7 +1013,6 @@ function drawSky() {
 
   // sun/moon
   if (periodIdx === 1) {
-    // sun
     const sunX = W * 0.2 + skyTransition * W * 0.1;
     const sunY = H * 0.12;
     const sunGlow = ctx.createRadialGradient(sunX, sunY, 0, sunX, sunY, 60);
@@ -545,24 +1022,15 @@ function drawSky() {
     ctx.fillStyle = sunGlow;
     ctx.fillRect(sunX - 60, sunY - 60, 120, 120);
     ctx.fillStyle = '#fff8e1';
-    ctx.beginPath();
-    ctx.arc(sunX, sunY, 14, 0, Math.PI * 2);
-    ctx.fill();
+    ctx.beginPath(); ctx.arc(sunX, sunY, 14, 0, Math.PI * 2); ctx.fill();
   } else if (periodIdx === 2) {
-    // moon
-    const moonX = W * 0.82;
-    const moonY = H * 0.1;
+    const moonX = W * 0.82, moonY = H * 0.1;
     ctx.fillStyle = '#e8eaf6';
-    ctx.beginPath();
-    ctx.arc(moonX, moonY, 12, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.fillStyle = PERIODS[2].skyTop;
-    ctx.beginPath();
-    ctx.arc(moonX + 4, moonY - 3, 10, 0, Math.PI * 2);
-    ctx.fill();
+    ctx.beginPath(); ctx.arc(moonX, moonY, 12, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = periods[2].skyTop;
+    ctx.beginPath(); ctx.arc(moonX + 4, moonY - 3, 10, 0, Math.PI * 2); ctx.fill();
   }
 
-  // clouds
   drawClouds();
 }
 
@@ -589,14 +1057,12 @@ function drawCitySilhouette() {
   const baseY = HUD_H + FLOORS * FLOOR_H;
   ctx.fillStyle = 'rgba(8,12,24,0.7)';
 
-  // left buildings
   const lx = BUILD_X - 20;
   for (let i = 0; i < 4; i++) {
     const bw = 20 + Math.sin(i * 2.3) * 8;
     const bh = 60 + i * 40 + Math.sin(i * 1.7) * 30;
     const bx = lx - (i + 1) * (bw + 8);
     ctx.fillRect(bx, baseY - bh, bw, bh);
-    // tiny windows
     ctx.fillStyle = 'rgba(255,220,120,0.08)';
     for (let wy = baseY - bh + 8; wy < baseY - 6; wy += 12) {
       for (let wx = bx + 4; wx < bx + bw - 4; wx += 8) {
@@ -607,7 +1073,6 @@ function drawCitySilhouette() {
     ctx.fillStyle = 'rgba(8,12,24,0.7)';
   }
 
-  // right buildings
   const rx = BUILD_X + BUILD_W + 20;
   for (let i = 0; i < 4; i++) {
     const bw = 18 + Math.sin(i * 3.1) * 6;
@@ -631,228 +1096,463 @@ function drawBuilding() {
   const bw = BUILD_W;
   const bh = FLOORS * FLOOR_H;
 
-  // building shadow
-  ctx.fillStyle = 'rgba(0,0,0,0.35)';
-  ctx.fillRect(bx + 8, by + 5, bw, bh + 5);
+  // building shadow — soft layered
+  ctx.fillStyle = 'rgba(0,0,0,0.12)';
+  ctx.fillRect(bx + 10, by + 6, bw + 2, bh + 6);
+  ctx.fillStyle = 'rgba(0,0,0,0.18)';
+  ctx.fillRect(bx + 5, by + 3, bw + 1, bh + 3);
 
-  // main building body — glass facade gradient
+  // main building body — warm concrete facade
   const bGrad = ctx.createLinearGradient(bx, by, bx + bw, by + bh);
-  bGrad.addColorStop(0, '#18283e');
-  bGrad.addColorStop(0.3, '#1e3350');
-  bGrad.addColorStop(0.7, '#1a2e48');
-  bGrad.addColorStop(1, '#162840');
+  bGrad.addColorStop(0, '#1e2d3d');
+  bGrad.addColorStop(0.3, '#233448');
+  bGrad.addColorStop(0.6, '#263a50');
+  bGrad.addColorStop(1, '#1c2a3a');
   ctx.fillStyle = bGrad;
-  ctx.fillRect(bx, by, bw, bh);
+  roundRect(ctx, bx, by, bw, bh, 3);
+  ctx.fill();
 
-  // glass reflection overlay
-  const refl = ctx.createLinearGradient(bx, by, bx + bw * 0.6, by + bh);
-  refl.addColorStop(0, 'rgba(100,180,255,0.06)');
-  refl.addColorStop(0.3, 'rgba(100,180,255,0.02)');
-  refl.addColorStop(0.7, 'rgba(100,180,255,0)');
+  // subtle glass sheen — gentle diagonal
+  const refl = ctx.createLinearGradient(bx, by, bx + bw * 0.6, by + bh * 0.6);
+  refl.addColorStop(0, 'rgba(160,210,240,0.05)');
+  refl.addColorStop(0.3, 'rgba(160,210,240,0.02)');
+  refl.addColorStop(0.7, 'rgba(160,210,240,0)');
+  refl.addColorStop(1, 'rgba(160,210,240,0.03)');
   ctx.fillStyle = refl;
   ctx.fillRect(bx, by, bw, bh);
 
-  // floors
+  // horizontal floor dividers
   for (let f = 1; f <= FLOORS; f++) {
     const fy = floorY(f);
 
-    // floor separator — thin bright line
-    ctx.strokeStyle = 'rgba(80,140,200,0.12)';
-    ctx.lineWidth = 1;
-    ctx.beginPath();
-    ctx.moveTo(bx, fy + FLOOR_H);
-    ctx.lineTo(bx + bw, fy + FLOOR_H);
-    ctx.stroke();
+    // clean floor separator
+    ctx.fillStyle = 'rgba(80,120,160,0.18)';
+    ctx.fillRect(bx + 1, fy + FLOOR_H - 1, bw - 2, 1.5);
+    // subtle shadow below separator
+    ctx.fillStyle = 'rgba(0,0,0,0.08)';
+    ctx.fillRect(bx + 1, fy + FLOOR_H + 0.5, bw - 2, 1);
 
-    // floor number plate
+    // floor number — clean rounded tag
     const plateX = bx + 6;
-    const plateY = fy + FLOOR_H * 0.35;
-    ctx.fillStyle = 'rgba(0,0,0,0.3)';
-    roundRect(ctx, plateX, plateY - 7, 22, 14, 3);
+    const plateY = fy + FLOOR_H * 0.5;
+    const plateW = 22, plateH = 14;
+    // tag bg
+    ctx.fillStyle = 'rgba(15,25,40,0.65)';
+    roundRect(ctx, plateX, plateY - plateH/2, plateW, plateH, 4);
     ctx.fill();
-    ctx.font = 'bold 9px monospace';
+    // tag subtle border
+    ctx.strokeStyle = 'rgba(100,160,220,0.12)';
+    ctx.lineWidth = 0.5;
+    roundRect(ctx, plateX, plateY - plateH/2, plateW, plateH, 4);
+    ctx.stroke();
+    // floor number text
+    ctx.font = 'bold 9px -apple-system, sans-serif';
     ctx.textAlign = 'center';
-    ctx.fillStyle = '#5a8aaa';
-    ctx.fillText(`${f}F`, plateX + 11, plateY + 3);
+    ctx.fillStyle = 'rgba(130,190,240,0.8)';
+    ctx.fillText(`${f}F`, plateX + plateW/2, plateY + 3);
 
-    // windows — glass panels with occasional warm glow
+    // windows — cleaner rounded glass panels
     const winStartX = bx + 34;
     const winAreaW = LOBBY_W - 10;
-    const winW = 16, winH = FLOOR_H - 10, winGap = 4;
+    const winW = 14, winH = Math.max(8, FLOOR_H - 12), winGap = 5;
     const winCount = Math.floor(winAreaW / (winW + winGap));
 
     for (let w = 0; w < winCount; w++) {
       const wx = winStartX + w * (winW + winGap);
-      const wy = fy + 5;
-      const lit = Math.sin(f * 3.7 + w * 2.1 + tick * 0.008) > 0.15;
-      const warmLit = Math.sin(f * 2.3 + w * 5.1 + tick * 0.003) > 0.6;
+      const wy = fy + (FLOOR_H - winH) / 2;
+      const seed = f * 7.3 + w * 13.7;
+      const lit = Math.sin(seed + tick * 0.008) > 0.2;
+      const warmLit = Math.sin(seed * 0.7 + tick * 0.003) > 0.55;
 
-      // window pane
+      // window base color
       if (warmLit && (periodIdx === 0 || periodIdx === 2)) {
-        // warm interior light
         const wGlow = ctx.createLinearGradient(wx, wy, wx, wy + winH);
-        wGlow.addColorStop(0, 'rgba(255,220,120,0.25)');
-        wGlow.addColorStop(1, 'rgba(255,180,80,0.1)');
+        wGlow.addColorStop(0, 'rgba(255,225,150,0.28)');
+        wGlow.addColorStop(0.7, 'rgba(255,200,120,0.12)');
+        wGlow.addColorStop(1, 'rgba(255,180,90,0.06)');
         ctx.fillStyle = wGlow;
       } else if (lit) {
-        ctx.fillStyle = periodIdx === 1 ? 'rgba(135,206,250,0.12)' : 'rgba(180,210,240,0.08)';
+        ctx.fillStyle = periodIdx === 1 ? 'rgba(120,200,255,0.12)' : 'rgba(160,195,230,0.08)';
       } else {
-        ctx.fillStyle = 'rgba(10,20,40,0.5)';
+        ctx.fillStyle = 'rgba(10,18,30,0.5)';
       }
-      ctx.fillRect(wx, wy, winW, winH);
+      roundRect(ctx, wx, wy, winW, winH, 2);
+      ctx.fill();
 
       // window frame
-      ctx.strokeStyle = 'rgba(80,140,200,0.1)';
-      ctx.lineWidth = 0.5;
-      ctx.strokeRect(wx, wy, winW, winH);
-
-      // cross bar
-      ctx.beginPath();
-      ctx.moveTo(wx + winW/2, wy); ctx.lineTo(wx + winW/2, wy + winH);
+      ctx.strokeStyle = 'rgba(80,130,180,0.13)';
+      ctx.lineWidth = 0.8;
+      roundRect(ctx, wx, wy, winW, winH, 2);
       ctx.stroke();
+
+      // center cross
+      ctx.strokeStyle = 'rgba(80,130,180,0.06)';
+      ctx.lineWidth = 0.5;
+      ctx.beginPath();
+      ctx.moveTo(wx + winW/2, wy + 1); ctx.lineTo(wx + winW/2, wy + winH - 1);
+      ctx.stroke();
+
+      // warm-lit window details
+      if (warmLit && (periodIdx === 0 || periodIdx === 2)) {
+        // subtle warm glow spill
+        ctx.shadowColor = 'rgba(255,200,100,0.1)';
+        ctx.shadowBlur = 4;
+        ctx.fillStyle = 'rgba(255,220,150,0.04)';
+        ctx.fillRect(wx - 2, wy - 1, winW + 4, winH + 2);
+        ctx.shadowBlur = 0;
+        // small plant on windowsill
+        if (Math.sin(seed * 3.1) > 0.5) {
+          ctx.fillStyle = 'rgba(90,170,90,0.2)';
+          ctx.beginPath();
+          ctx.arc(wx + winW/2, wy + winH - 2, 3, Math.PI, 0);
+          ctx.fill();
+        }
+      }
     }
+
+    // floor interior back wall tint
+    const lobbyX = lobbyStartX();
+    ctx.fillStyle = 'rgba(12,20,32,0.25)';
+    ctx.fillRect(lobbyX, fy + 1, LOBBY_W, FLOOR_H - 2);
   }
 
-  // building outline — subtle glass edge
-  ctx.strokeStyle = 'rgba(80,160,220,0.2)';
-  ctx.lineWidth = 1.5;
-  ctx.strokeRect(bx, by, bw, bh);
+  // vertical edge columns — subtle
+  const colGrad = ctx.createLinearGradient(bx, by, bx + 4, by);
+  colGrad.addColorStop(0, 'rgba(60,90,120,0.2)');
+  colGrad.addColorStop(1, 'rgba(60,90,120,0.05)');
+  ctx.fillStyle = colGrad;
+  ctx.fillRect(bx, by, 4, bh);
+  const colGrad2 = ctx.createLinearGradient(bx + bw - 4, by, bx + bw, by);
+  colGrad2.addColorStop(0, 'rgba(60,90,120,0.05)');
+  colGrad2.addColorStop(1, 'rgba(60,90,120,0.2)');
+  ctx.fillStyle = colGrad2;
+  ctx.fillRect(bx + bw - 4, by, 4, bh);
 
-  // left edge highlight
-  ctx.strokeStyle = 'rgba(120,180,240,0.1)';
-  ctx.lineWidth = 1;
-  ctx.beginPath();
-  ctx.moveTo(bx + 1, by); ctx.lineTo(bx + 1, by + bh);
+  // building outline — single clean border
+  ctx.strokeStyle = 'rgba(80,130,180,0.2)';
+  ctx.lineWidth = 1.5;
+  roundRect(ctx, bx, by, bw, bh, 3);
   ctx.stroke();
 
-  // rooftop structure
-  ctx.fillStyle = '#1e3350';
-  ctx.fillRect(bx + 15, by - 6, bw - 30, 6);
-  // rooftop railing
-  ctx.strokeStyle = 'rgba(80,140,200,0.3)';
+  // left edge light reflection
+  ctx.strokeStyle = 'rgba(160,210,240,0.08)';
   ctx.lineWidth = 1;
-  for (let rx = bx + 20; rx < bx + bw - 20; rx += 15) {
-    ctx.beginPath();
-    ctx.moveTo(rx, by - 6); ctx.lineTo(rx, by - 14);
+  ctx.beginPath(); ctx.moveTo(bx + 1.5, by + 4); ctx.lineTo(bx + 1.5, by + bh - 4); ctx.stroke();
+
+  // ====== ROOFTOP ======
+  const parapetH = 7;
+  const parapetGrad = ctx.createLinearGradient(bx, by - parapetH, bx, by);
+  parapetGrad.addColorStop(0, '#2c4560');
+  parapetGrad.addColorStop(1, '#213550');
+  ctx.fillStyle = parapetGrad;
+  roundRect(ctx, bx + 4, by - parapetH, bw - 8, parapetH, 2);
+  ctx.fill();
+  // parapet top highlight
+  ctx.fillStyle = 'rgba(100,160,220,0.15)';
+  ctx.fillRect(bx + 5, by - parapetH, bw - 10, 1);
+
+  // simple railing
+  ctx.strokeStyle = 'rgba(90,140,190,0.2)';
+  ctx.lineWidth = 0.8;
+  for (let rx = bx + 14; rx < bx + bw - 14; rx += 14) {
+    ctx.beginPath(); ctx.moveTo(rx, by - parapetH); ctx.lineTo(rx, by - parapetH - 8); ctx.stroke();
+  }
+  ctx.beginPath(); ctx.moveTo(bx + 14, by - parapetH - 8); ctx.lineTo(bx + bw - 14, by - parapetH - 8); ctx.stroke();
+
+  // rooftop AC unit
+  ctx.fillStyle = '#1c3248';
+  roundRect(ctx, bx + 18, by - parapetH - 7, 13, 7, 1.5);
+  ctx.fill();
+  ctx.strokeStyle = 'rgba(80,130,180,0.15)'; ctx.lineWidth = 0.5;
+  roundRect(ctx, bx + 18, by - parapetH - 7, 13, 7, 1.5);
+  ctx.stroke();
+  // fan
+  ctx.strokeStyle = 'rgba(100,170,230,0.2)';
+  ctx.lineWidth = 0.8;
+  const fanX = bx + 24.5, fanY = by - parapetH - 3.5;
+  const fanAngle = tick * 0.15;
+  for (let fi = 0; fi < 3; fi++) {
+    const a = fanAngle + fi * Math.PI * 2 / 3;
+    ctx.beginPath(); ctx.moveTo(fanX, fanY);
+    ctx.lineTo(fanX + Math.cos(a) * 3.5, fanY + Math.sin(a) * 2.5);
     ctx.stroke();
   }
-  ctx.beginPath();
-  ctx.moveTo(bx + 20, by - 14); ctx.lineTo(bx + bw - 20, by - 14);
-  ctx.stroke();
 
-  // antenna / satellite
+  // second AC unit — smaller
+  ctx.fillStyle = '#1c3248';
+  roundRect(ctx, bx + bw - 36, by - parapetH - 5, 10, 5, 1.5);
+  ctx.fill();
+
+  // antenna — simpler
   const antX = bx + bw * 0.5;
+  const antBase = by - parapetH - 8;
   ctx.strokeStyle = '#4a6a8a'; ctx.lineWidth = 2;
-  ctx.beginPath(); ctx.moveTo(antX, by - 14); ctx.lineTo(antX, by - 32); ctx.stroke();
-  // blinking light
+  ctx.beginPath(); ctx.moveTo(antX, antBase); ctx.lineTo(antX, antBase - 18); ctx.stroke();
+  // crossbar
+  ctx.strokeStyle = 'rgba(80,130,180,0.25)'; ctx.lineWidth = 0.8;
+  ctx.beginPath(); ctx.moveTo(antX - 4, antBase - 7); ctx.lineTo(antX + 4, antBase - 7); ctx.stroke();
+  // blinking red light
   const blink = Math.sin(tick * 0.1) > 0.3;
   if (blink) {
     ctx.fillStyle = '#ef5350';
-    ctx.shadowColor = '#ef5350'; ctx.shadowBlur = 8;
-    ctx.beginPath(); ctx.arc(antX, by - 34, 2.5, 0, Math.PI * 2); ctx.fill();
+    ctx.shadowColor = '#ef5350'; ctx.shadowBlur = 6;
+    ctx.beginPath(); ctx.arc(antX, antBase - 20, 2, 0, Math.PI * 2); ctx.fill();
     ctx.shadowBlur = 0;
   }
 
-  // ground floor entrance
+  // ====== GROUND FLOOR ENTRANCE ======
   const gfy = floorY(1);
-  const entranceW = 40;
+  const entranceW = 42;
   const entranceX = bx + (34 + LOBBY_W/2) - entranceW/2;
+
+  // entrance warm ambient glow
+  const entGlow = ctx.createRadialGradient(entranceX + entranceW/2, gfy + FLOOR_H/2, 4, entranceX + entranceW/2, gfy + FLOOR_H/2, 35);
+  entGlow.addColorStop(0, 'rgba(255,225,150,0.12)');
+  entGlow.addColorStop(1, 'transparent');
+  ctx.fillStyle = entGlow;
+  ctx.fillRect(entranceX - 15, gfy - 8, entranceW + 30, FLOOR_H + 16);
+
   // door frame
-  ctx.fillStyle = 'rgba(255,220,120,0.12)';
-  ctx.fillRect(entranceX, gfy + 4, entranceW, FLOOR_H - 4);
-  ctx.strokeStyle = 'rgba(255,220,120,0.25)';
-  ctx.lineWidth = 1;
-  ctx.strokeRect(entranceX, gfy + 4, entranceW, FLOOR_H - 4);
+  ctx.fillStyle = '#263e55';
+  roundRect(ctx, entranceX - 2, gfy + 3, entranceW + 4, FLOOR_H - 3, 2);
+  ctx.fill();
+  // glass door panels
+  const doorGrad = ctx.createLinearGradient(entranceX, gfy, entranceX, gfy + FLOOR_H);
+  doorGrad.addColorStop(0, 'rgba(255,240,210,0.18)');
+  doorGrad.addColorStop(0.5, 'rgba(255,225,160,0.1)');
+  doorGrad.addColorStop(1, 'rgba(255,210,130,0.04)');
+  ctx.fillStyle = doorGrad;
+  roundRect(ctx, entranceX + 1, gfy + 5, entranceW/2 - 3, FLOOR_H - 8, 1.5);
+  ctx.fill();
+  roundRect(ctx, entranceX + entranceW/2 + 2, gfy + 5, entranceW/2 - 3, FLOOR_H - 8, 1.5);
+  ctx.fill();
+  // door handles
+  ctx.fillStyle = 'rgba(200,185,150,0.35)';
+  ctx.fillRect(entranceX + entranceW/2 - 3, gfy + FLOOR_H * 0.4, 1.5, 7);
+  ctx.fillRect(entranceX + entranceW/2 + 1.5, gfy + FLOOR_H * 0.4, 1.5, 7);
+  // door frame line
+  ctx.strokeStyle = 'rgba(200,180,140,0.15)';
+  ctx.lineWidth = 0.8;
+  ctx.strokeRect(entranceX, gfy + 4, entranceW, FLOOR_H - 6);
+
   // canopy
-  ctx.fillStyle = '#2a4060';
+  ctx.fillStyle = '#2a4560';
   ctx.beginPath();
-  ctx.moveTo(entranceX - 10, gfy + 4);
-  ctx.lineTo(entranceX + entranceW + 10, gfy + 4);
-  ctx.lineTo(entranceX + entranceW + 5, gfy);
-  ctx.lineTo(entranceX - 5, gfy);
+  ctx.moveTo(entranceX - 10, gfy + 3);
+  ctx.lineTo(entranceX + entranceW + 10, gfy + 3);
+  ctx.lineTo(entranceX + entranceW + 6, gfy - 3);
+  ctx.lineTo(entranceX - 6, gfy - 3);
   ctx.closePath();
   ctx.fill();
+  // canopy edge highlight
+  ctx.strokeStyle = 'rgba(130,180,220,0.12)';
+  ctx.lineWidth = 0.5;
+  ctx.beginPath();
+  ctx.moveTo(entranceX - 6, gfy - 3);
+  ctx.lineTo(entranceX + entranceW + 6, gfy - 3);
+  ctx.stroke();
 
-  // ground
+  // ====== GROUND / SIDEWALK ======
   ctx.fillStyle = '#0c1520';
   ctx.fillRect(0, gfy + FLOOR_H, W, H - gfy - FLOOR_H);
   // pavement
-  ctx.fillStyle = 'rgba(40,60,80,0.4)';
-  ctx.fillRect(bx - 30, gfy + FLOOR_H, bw + 60, 6);
+  const paveGrad = ctx.createLinearGradient(0, gfy + FLOOR_H, 0, gfy + FLOOR_H + 10);
+  paveGrad.addColorStop(0, 'rgba(55,75,95,0.45)');
+  paveGrad.addColorStop(1, 'rgba(35,55,75,0.15)');
+  ctx.fillStyle = paveGrad;
+  ctx.fillRect(bx - 35, gfy + FLOOR_H, bw + 70, 10);
+  // curb line
+  ctx.fillStyle = 'rgba(80,110,140,0.25)';
+  ctx.fillRect(bx - 35, gfy + FLOOR_H, bw + 70, 1.5);
+  // pavement joints
+  ctx.strokeStyle = 'rgba(70,90,110,0.1)';
+  ctx.lineWidth = 0.5;
+  for (let px = bx - 25; px < bx + bw + 25; px += 22) {
+    ctx.beginPath(); ctx.moveTo(px, gfy + FLOOR_H + 2); ctx.lineTo(px, gfy + FLOOR_H + 10); ctx.stroke();
+  }
+}
+
+// ====== DETAILED PERSON DRAWING ======
+// draws a person at (x, y=feet position) with given scale and type data
+function drawPersonDetailed(x, y, scale, type, isAngry) {
+  const s = scale;
+
+  // shadow
+  ctx.fillStyle = 'rgba(0,0,0,0.15)';
+  ctx.beginPath(); ctx.ellipse(x, y + 2 * s, 5 * s, 1.5 * s, 0, 0, Math.PI * 2); ctx.fill();
+
+  // legs
+  ctx.strokeStyle = type.pants;
+  ctx.lineWidth = 2.5 * s;
+  ctx.lineCap = 'round';
+  ctx.beginPath(); ctx.moveTo(x - 2.5 * s, y - 7 * s); ctx.lineTo(x - 3 * s, y); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(x + 2.5 * s, y - 7 * s); ctx.lineTo(x + 3 * s, y); ctx.stroke();
+
+  // shoes
+  ctx.fillStyle = '#37474f';
+  ctx.beginPath(); ctx.ellipse(x - 3 * s, y + 1 * s, 2.5 * s, 1.2 * s, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(x + 3 * s, y + 1 * s, 2.5 * s, 1.2 * s, 0, 0, Math.PI * 2); ctx.fill();
+
+  // body / torso
+  ctx.fillStyle = type.body;
+  roundRect(ctx, x - 5.5 * s, y - 16 * s, 11 * s, 10 * s, 3 * s);
+  ctx.fill();
+
+  // arms
+  ctx.strokeStyle = type.body;
+  ctx.lineWidth = 2.5 * s;
+  const armSwing = isAngry ? Math.sin(tick * 0.4) * 3 * s : Math.sin(tick * 0.04 + x) * 1.5 * s;
+  // left arm
+  ctx.beginPath();
+  ctx.moveTo(x - 5.5 * s, y - 14 * s);
+  ctx.lineTo(x - 8 * s, y - 8 * s + armSwing);
+  ctx.stroke();
+  // right arm
+  ctx.beginPath();
+  ctx.moveTo(x + 5.5 * s, y - 14 * s);
+  ctx.lineTo(x + 8 * s, y - 8 * s - armSwing);
+  ctx.stroke();
+
+  // hands
+  ctx.fillStyle = type.head;
+  ctx.beginPath(); ctx.arc(x - 8 * s, y - 7.5 * s + armSwing, 1.5 * s, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(x + 8 * s, y - 7.5 * s - armSwing, 1.5 * s, 0, Math.PI * 2); ctx.fill();
+
+  // neck
+  ctx.fillStyle = type.head;
+  ctx.fillRect(x - 1.5 * s, y - 18 * s, 3 * s, 3 * s);
+
+  // head
+  ctx.fillStyle = type.head;
+  ctx.beginPath(); ctx.arc(x, y - 21 * s, 5.5 * s, 0, Math.PI * 2); ctx.fill();
+
+  // hair
+  ctx.fillStyle = type.hair;
+  if (type.hairStyle === 'short') {
+    ctx.beginPath(); ctx.arc(x, y - 23 * s, 5 * s, Math.PI, 0, false); ctx.fill();
+    ctx.fillRect(x - 5 * s, y - 23 * s, 10 * s, 2 * s);
+  } else if (type.hairStyle === 'long') {
+    ctx.beginPath(); ctx.arc(x, y - 23 * s, 5.5 * s, Math.PI, 0, false); ctx.fill();
+    // flowing sides
+    ctx.fillRect(x - 5.5 * s, y - 23 * s, 2.5 * s, 9 * s);
+    ctx.fillRect(x + 3 * s, y - 23 * s, 2.5 * s, 9 * s);
+  } else if (type.hairStyle === 'bun') {
+    ctx.beginPath(); ctx.arc(x, y - 23 * s, 5 * s, Math.PI, 0, false); ctx.fill();
+    ctx.beginPath(); ctx.arc(x, y - 27 * s, 3 * s, 0, Math.PI * 2); ctx.fill();
+  } else if (type.hairStyle === 'spiky') {
+    for (let i = -2; i <= 2; i++) {
+      ctx.beginPath();
+      ctx.moveTo(x + i * 2.5 * s, y - 23 * s);
+      ctx.lineTo(x + i * 2 * s, y - 29 * s);
+      ctx.lineTo(x + i * 2.5 * s + 2 * s, y - 23 * s);
+      ctx.fill();
+    }
+  } else if (type.hairStyle === 'pony') {
+    ctx.beginPath(); ctx.arc(x, y - 23 * s, 5 * s, Math.PI, 0, false); ctx.fill();
+    // ponytail
+    ctx.beginPath();
+    ctx.moveTo(x + 4 * s, y - 23 * s);
+    ctx.quadraticCurveTo(x + 10 * s, y - 22 * s, x + 8 * s, y - 15 * s);
+    ctx.lineTo(x + 5 * s, y - 22 * s);
+    ctx.fill();
+  }
+  // bald = no hair drawn
+
+  // eyes
+  ctx.fillStyle = '#fff';
+  ctx.beginPath(); ctx.arc(x - 2 * s, y - 21.5 * s, 1.5 * s, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(x + 2 * s, y - 21.5 * s, 1.5 * s, 0, Math.PI * 2); ctx.fill();
+  // pupils
+  ctx.fillStyle = isAngry ? '#ef5350' : '#212121';
+  ctx.beginPath(); ctx.arc(x - 1.5 * s, y - 21.5 * s, 0.8 * s, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(x + 2.5 * s, y - 21.5 * s, 0.8 * s, 0, Math.PI * 2); ctx.fill();
+
+  // mouth
+  if (isAngry) {
+    ctx.strokeStyle = '#ef5350';
+    ctx.lineWidth = 0.8 * s;
+    ctx.beginPath();
+    ctx.moveTo(x - 2 * s, y - 18 * s);
+    ctx.lineTo(x, y - 19 * s);
+    ctx.lineTo(x + 2 * s, y - 18 * s);
+    ctx.stroke();
+  } else {
+    ctx.strokeStyle = '#795548';
+    ctx.lineWidth = 0.6 * s;
+    ctx.beginPath();
+    ctx.arc(x, y - 19 * s, 1.5 * s, 0.1 * Math.PI, 0.9 * Math.PI);
+    ctx.stroke();
+  }
+
+  ctx.lineCap = 'butt';
+}
+
+// mini version for inside elevator cab
+function drawPersonMini(x, y, scale, color, headColor) {
+  const s = scale;
+  // body
+  ctx.fillStyle = color;
+  roundRect(ctx, x - 3 * s, y - 6 * s, 6 * s, 7 * s, 1.5 * s);
+  ctx.fill();
+  // head
+  ctx.fillStyle = headColor || '#ffcc80';
+  ctx.beginPath(); ctx.arc(x, y - 9 * s, 3 * s, 0, Math.PI * 2); ctx.fill();
+  // eyes
+  ctx.fillStyle = '#212121';
+  ctx.beginPath(); ctx.arc(x - 1 * s, y - 9.5 * s, 0.5 * s, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(x + 1 * s, y - 9.5 * s, 0.5 * s, 0, Math.PI * 2); ctx.fill();
 }
 
 function drawWaitingPeople() {
   for (const p of waitingPeople) {
     if (p.leaving) {
-      // fade out + slide
-      const alpha = 1 - p.leaveTimer / 30;
+      const alpha = 1 - p.leaveTimer / 0.5;
       ctx.globalAlpha = alpha;
     }
 
-    // position people at the elevator shafts area
     const totalShaftW = ELEV_COUNT * SHAFT_W + (ELEV_COUNT - 1) * SHAFT_GAP;
     const shaftCenterX = shaftX(0) + totalShaftW / 2;
     const px = shaftCenterX - totalShaftW * 0.4 + p.slot * (totalShaftW / 3);
     const fy = floorY(p.floor);
-    const py = fy + FLOOR_H * 0.78;
-    const bob = Math.sin(tick * 0.06 + p.bobOffset) * 1.2;
+    const py = fy + FLOOR_H * 0.85;
+    const bob = Math.sin(tick * 0.06 + p.bobOffset) * 1.0;
     const slideIn = p.enterAnim * -30;
 
     const dx = px + slideIn;
     const dy = py + bob;
 
-    // person shadow
-    ctx.fillStyle = 'rgba(0,0,0,0.15)';
-    ctx.beginPath();
-    ctx.ellipse(dx, dy + 6, 7, 2, 0, 0, Math.PI * 2);
-    ctx.fill();
+    const effectiveMaxWait = p.maxWait * getEventPatienceMult();
+    const urgency = p.waitTime / effectiveMaxWait;
+    const isAngry = urgency > 0.7;
 
-    // body
-    ctx.fillStyle = p.type.body;
-    roundRect(ctx, dx - 6, dy - 7, 12, 16, 3);
-    ctx.fill();
+    // draw the person
+    const personScale = Math.min(1.0, FLOOR_H / 36);
+    drawPersonDetailed(dx, dy, personScale, p.type, isAngry);
 
-    // head
-    ctx.fillStyle = p.type.head;
-    ctx.beginPath();
-    ctx.arc(dx, dy - 14, 6.5, 0, Math.PI * 2);
-    ctx.fill();
-
-    // hair (top of head)
-    ctx.fillStyle = p.type.label === 'F' ? '#5d4037' : '#3e2723';
-    ctx.beginPath();
-    ctx.arc(dx, dy - 17, 5.5, 0, Math.PI, true);
-    ctx.fill();
-
-    // VIP crown
+    // VIP tag
     if (p.vip) {
       ctx.fillStyle = '#ffd54f';
-      ctx.font = '11px sans-serif';
+      ctx.font = `bold ${Math.round(9 * personScale)}px sans-serif`;
       ctx.textAlign = 'center';
-      ctx.fillText('👑', dx, dy - 24);
+      ctx.fillText('VIP', dx, dy - 30 * personScale);
     }
 
-    // destination badge
-    const urgency = p.waitTime / p.maxWait;
+    // destination badge above head
     let badgeColor;
     if (urgency > 0.75) badgeColor = '#ef5350';
     else if (urgency > 0.45) badgeColor = '#ffa726';
     else badgeColor = '#66bb6a';
 
-    // badge background
     const badgeX = dx;
-    const badgeY = dy - 30 - (p.vip ? 8 : 0);
+    const badgeY = dy - 33 * personScale - (p.vip ? 10 * personScale : 0);
     ctx.fillStyle = badgeColor;
     ctx.shadowColor = badgeColor;
     ctx.shadowBlur = urgency > 0.6 ? 8 : 0;
-    ctx.beginPath();
-    ctx.arc(badgeX, badgeY, 12, 0, Math.PI * 2);
-    ctx.fill();
+    ctx.beginPath(); ctx.arc(badgeX, badgeY, 9 * personScale, 0, Math.PI * 2); ctx.fill();
     ctx.shadowBlur = 0;
 
-    // badge text
     ctx.fillStyle = '#fff';
-    ctx.font = 'bold 14px -apple-system, sans-serif';
+    ctx.font = `bold ${Math.round(12 * personScale)}px -apple-system, sans-serif`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     ctx.fillText(p.dest, badgeX, badgeY);
@@ -862,8 +1562,8 @@ function drawWaitingPeople() {
     if (urgency > 0.7) {
       const shake = Math.sin(tick * 0.3) * 2;
       ctx.fillStyle = '#ef5350';
-      ctx.font = 'bold 13px sans-serif';
-      ctx.fillText('!', dx + 14 + shake, dy - 24);
+      ctx.font = `bold ${Math.round(11 * personScale)}px sans-serif`;
+      ctx.fillText('!', dx + 12 * personScale + shake, badgeY);
     }
 
     ctx.globalAlpha = 1;
@@ -877,58 +1577,85 @@ function drawElevatorShafts() {
     const shaftY = HUD_H;
     const shaftH = FLOORS * FLOOR_H;
 
-    // shaft background
+    // shaft background — clean dark gradient
     const shaftGrad = ctx.createLinearGradient(sx, shaftY, sx + SHAFT_W, shaftY);
-    shaftGrad.addColorStop(0, '#142337');
-    shaftGrad.addColorStop(0.5, '#0f1c2d');
-    shaftGrad.addColorStop(1, '#142337');
+    shaftGrad.addColorStop(0, '#0e1a28');
+    shaftGrad.addColorStop(0.2, '#0b1520');
+    shaftGrad.addColorStop(0.5, '#09121c');
+    shaftGrad.addColorStop(0.8, '#0b1520');
+    shaftGrad.addColorStop(1, '#0e1a28');
     ctx.fillStyle = shaftGrad;
-    ctx.fillRect(sx - 1, shaftY, SHAFT_W + 2, shaftH);
+    ctx.fillRect(sx, shaftY, SHAFT_W, shaftH);
 
-    // shaft side walls
-    ctx.strokeStyle = 'rgba(80,130,180,0.15)';
-    ctx.lineWidth = 1.5;
-    ctx.beginPath();
-    ctx.moveTo(sx - 1, shaftY); ctx.lineTo(sx - 1, shaftY + shaftH);
-    ctx.moveTo(sx + SHAFT_W + 1, shaftY); ctx.lineTo(sx + SHAFT_W + 1, shaftY + shaftH);
-    ctx.stroke();
-
-    // shaft guide rails
-    ctx.strokeStyle = 'rgba(100,160,220,0.08)';
-    ctx.lineWidth = 0.5;
-    ctx.beginPath();
-    ctx.moveTo(sx + 3, shaftY); ctx.lineTo(sx + 3, shaftY + shaftH);
-    ctx.moveTo(sx + SHAFT_W - 3, shaftY); ctx.lineTo(sx + SHAFT_W - 3, shaftY + shaftH);
-    ctx.stroke();
-
-    // floor door frames
-    for (let f = 1; f <= FLOORS; f++) {
-      const fy = floorY(f);
-      ctx.strokeStyle = 'rgba(80,130,180,0.1)';
-      ctx.lineWidth = 0.5;
-      ctx.beginPath(); ctx.moveTo(sx, fy + FLOOR_H); ctx.lineTo(sx + SHAFT_W, fy + FLOOR_H); ctx.stroke();
-      ctx.strokeStyle = 'rgba(100,160,220,0.08)';
-      ctx.strokeRect(sx + 3, fy + 2, SHAFT_W - 6, FLOOR_H - 4);
+    // broken elevator visual
+    if (brokenElevIdx === i) {
+      ctx.fillStyle = `rgba(255,40,40,${0.05 + Math.sin(tick * 0.15) * 0.03})`;
+      ctx.fillRect(sx, shaftY, SHAFT_W, shaftH);
     }
 
-    // queue indicators
+    // shaft side walls — subtle inset
+    ctx.fillStyle = 'rgba(50,80,110,0.12)';
+    ctx.fillRect(sx, shaftY, 2.5, shaftH);
+    ctx.fillRect(sx + SHAFT_W - 2.5, shaftY, 2.5, shaftH);
+
+    // guide rails — thin lines
+    ctx.strokeStyle = 'rgba(90,140,190,0.07)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(sx + 3.5, shaftY); ctx.lineTo(sx + 3.5, shaftY + shaftH);
+    ctx.moveTo(sx + SHAFT_W - 3.5, shaftY); ctx.lineTo(sx + SHAFT_W - 3.5, shaftY + shaftH);
+    ctx.stroke();
+
+    // floor door frames — clean recessed look
+    for (let f = 1; f <= FLOORS; f++) {
+      const fy = floorY(f);
+      const doorX = sx + 5;
+      const doorW = SHAFT_W - 10;
+      const doorY = fy + 3;
+      const doorH = FLOOR_H - 5;
+      // recessed opening
+      ctx.fillStyle = 'rgba(15,25,40,0.45)';
+      roundRect(ctx, doorX, doorY, doorW, doorH, 1.5);
+      ctx.fill();
+      // door frame — thin clean border
+      ctx.strokeStyle = 'rgba(80,120,160,0.1)';
+      ctx.lineWidth = 0.8;
+      roundRect(ctx, doorX, doorY, doorW, doorH, 1.5);
+      ctx.stroke();
+      // mini floor indicator
+      ctx.fillStyle = 'rgba(0,0,0,0.3)';
+      roundRect(ctx, sx + SHAFT_W/2 - 7, fy + 1.5, 14, 6, 2);
+      ctx.fill();
+      ctx.fillStyle = e.color + '55';
+      ctx.font = 'bold 5px -apple-system, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText(f, sx + SHAFT_W/2, fy + 6);
+    }
+
+    // queue indicators — soft glowing dots
     for (const qf of e.queue) {
       const qy = floorY(qf) + FLOOR_H / 2;
       ctx.fillStyle = e.color + '44';
-      ctx.beginPath(); ctx.arc(sx + SHAFT_W / 2, qy, 3, 0, Math.PI * 2); ctx.fill();
-      const pulse = Math.sin(tick * 0.08) * 2 + 4;
-      ctx.strokeStyle = e.color + '22';
-      ctx.lineWidth = 1;
+      ctx.shadowColor = e.color;
+      ctx.shadowBlur = 5;
+      ctx.beginPath(); ctx.arc(sx + SHAFT_W / 2, qy, 2.5, 0, Math.PI * 2); ctx.fill();
+      ctx.shadowBlur = 0;
+      // gentle pulse ring
+      const pulse = Math.sin(tick * 0.08) * 2 + 4.5;
+      ctx.strokeStyle = e.color + '18';
+      ctx.lineWidth = 0.8;
       ctx.beginPath(); ctx.arc(sx + SHAFT_W / 2, qy, pulse, 0, Math.PI * 2); ctx.stroke();
     }
 
-    // cable
-    ctx.strokeStyle = 'rgba(100,160,220,0.12)';
-    ctx.lineWidth = 1;
-    ctx.beginPath();
-    ctx.moveTo(sx + SHAFT_W/2, shaftY);
-    ctx.lineTo(sx + SHAFT_W/2, e.y + 2);
-    ctx.stroke();
+    // cable — single clean line
+    const cableX = sx + SHAFT_W/2;
+    ctx.strokeStyle = 'rgba(120,160,200,0.12)';
+    ctx.lineWidth = 1.2;
+    ctx.beginPath(); ctx.moveTo(cableX, shaftY); ctx.lineTo(cableX, e.y + 2); ctx.stroke();
+    // second cable — very subtle
+    ctx.strokeStyle = 'rgba(100,140,180,0.05)';
+    ctx.lineWidth = 0.8;
+    ctx.beginPath(); ctx.moveTo(cableX + 2, shaftY); ctx.lineTo(cableX + 2, e.y + 2); ctx.stroke();
   }
 }
 
@@ -938,38 +1665,69 @@ function drawElevatorCabs() {
     const sx = shaftX(i);
     const cabY = e.y;
     const cabH = FLOOR_H - 4;
+    const cabX = sx + 2;
+    const cabW = SHAFT_W - 4;
 
-    // cab glow
+    // broken elevator: dim and flash
+    if (brokenElevIdx === i) {
+      ctx.globalAlpha = 0.35 + Math.sin(tick * 0.2) * 0.15;
+    }
+
+    // cab soft glow
     ctx.shadowColor = e.color;
-    ctx.shadowBlur = i === selectedElev ? 18 : 10;
+    ctx.shadowBlur = i === selectedElev ? 14 : 6;
 
-    // cab body
+    // cab body — clean warm gradient
     const cabGrad = ctx.createLinearGradient(sx, cabY, sx, cabY + cabH);
-    cabGrad.addColorStop(0, '#f0e6d2');
-    cabGrad.addColorStop(0.15, '#e6dcc3');
-    cabGrad.addColorStop(0.85, '#d2c8b4');
-    cabGrad.addColorStop(1, '#c0b4a0');
+    cabGrad.addColorStop(0, '#f0e8d8');
+    cabGrad.addColorStop(0.15, '#eee4d2');
+    cabGrad.addColorStop(0.5, '#e6dcc8');
+    cabGrad.addColorStop(1, '#d8ceb8');
     ctx.fillStyle = cabGrad;
-    roundRect(ctx, sx + 2, cabY + 2, SHAFT_W - 4, cabH, 3);
+    roundRect(ctx, cabX, cabY + 2, cabW, cabH, 3);
     ctx.fill();
     ctx.shadowBlur = 0;
 
-    // colored top bar
+    // colored top accent strip
     ctx.fillStyle = e.color;
-    ctx.fillRect(sx + 2, cabY + 2, SHAFT_W - 4, 3);
+    roundRect(ctx, cabX, cabY + 2, cabW, 3.5, 3);
+    ctx.fill();
+    ctx.fillRect(cabX + 2, cabY + 4, cabW - 4, 1.5);
 
-    // cab floor
-    ctx.fillStyle = 'rgba(80,70,60,0.5)';
-    ctx.fillRect(sx + 3, cabY + cabH - 3, SHAFT_W - 6, 2);
+    // interior — back wall
+    ctx.fillStyle = 'rgba(200,192,175,0.25)';
+    ctx.fillRect(cabX + 2, cabY + 8, cabW - 4, cabH - 12);
 
-    // cab side walls
-    ctx.strokeStyle = 'rgba(160,140,120,0.4)';
+    // ceiling light strip
+    ctx.fillStyle = 'rgba(255,250,235,0.18)';
+    ctx.fillRect(sx + SHAFT_W/2 - 7, cabY + 7, 14, 1.5);
+
+    // floor — subtle dark
+    ctx.fillStyle = 'rgba(70,62,48,0.35)';
+    ctx.fillRect(cabX + 2, cabY + cabH - 4, cabW - 4, 3);
+
+    // cab frame — single clean border
+    ctx.strokeStyle = 'rgba(170,155,130,0.4)';
     ctx.lineWidth = 1;
-    ctx.strokeRect(sx + 2, cabY + 2, SHAFT_W - 4, cabH);
+    roundRect(ctx, cabX, cabY + 2, cabW, cabH, 3);
+    ctx.stroke();
 
-    // --- draw passengers inside cab ---
+    // broken X overlay
+    if (brokenElevIdx === i) {
+      ctx.strokeStyle = '#ef5350';
+      ctx.lineWidth = 2.5;
+      ctx.lineCap = 'round';
+      ctx.beginPath();
+      ctx.moveTo(sx + 8, cabY + 8); ctx.lineTo(sx + SHAFT_W - 8, cabY + cabH - 8);
+      ctx.moveTo(sx + SHAFT_W - 8, cabY + 8); ctx.lineTo(sx + 8, cabY + cabH - 8);
+      ctx.stroke();
+      ctx.lineCap = 'butt';
+      ctx.globalAlpha = 1;
+    }
+
+    // passengers inside cab
     const pCount = e.passengers.length;
-    if (pCount > 0) {
+    if (pCount > 0 && brokenElevIdx !== i) {
       const innerW = SHAFT_W - 10;
       const innerX = sx + 5;
       const cols = Math.min(pCount, 3);
@@ -982,145 +1740,308 @@ function drawElevatorCabs() {
         const p = e.passengers[pi];
         const col = pi % 3;
         const row = Math.floor(pi / 3);
-        const px = innerX + col * personW + personW / 2;
-        const py = cabY + 8 + row * personH + personH * 0.7;
-        const scale = Math.min(1.8, personH / 12);
+        const ppx = innerX + col * personW + personW / 2;
+        const ppy = cabY + 10 + row * personH + personH * 0.7;
+        const mScale = Math.min(1.5, personH / 14);
 
-        ctx.fillStyle = p.color;
-        const bw = 5 * scale, bh = 8 * scale;
-        roundRect(ctx, px - bw/2, py - bh, bw, bh, 1.5);
-        ctx.fill();
-
-        ctx.fillStyle = p.head || '#ffcc80';
-        ctx.beginPath();
-        ctx.arc(px, py - bh - 2.5 * scale, 3 * scale, 0, Math.PI * 2);
-        ctx.fill();
+        drawPersonMini(ppx, ppy, mScale, p.color, p.head);
 
         if (p.vip) {
           ctx.fillStyle = '#ffd54f';
-          ctx.font = `${Math.max(7, 8 * scale)}px sans-serif`;
+          ctx.font = `${Math.max(6, 7 * mScale)}px sans-serif`;
           ctx.textAlign = 'center';
-          ctx.fillText('★', px, py - bh - 5 * scale);
+          ctx.fillText('*', ppx, ppy - 12 * mScale);
         }
 
-        ctx.fillStyle = 'rgba(0,0,0,0.55)';
-        ctx.beginPath();
-        ctx.arc(px, py + 3 * scale, 6 * scale, 0, Math.PI * 2);
-        ctx.fill();
+        // dest badge
+        ctx.fillStyle = 'rgba(0,0,0,0.5)';
+        ctx.beginPath(); ctx.arc(ppx, ppy + 3 * mScale, 5 * mScale, 0, Math.PI * 2); ctx.fill();
         ctx.fillStyle = '#fff';
-        ctx.font = `bold ${Math.max(9, 11 * scale)}px sans-serif`;
+        ctx.font = `bold ${Math.max(8, 9 * mScale)}px -apple-system, sans-serif`;
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
-        ctx.fillText(p.dest, px, py + 3 * scale);
+        ctx.fillText(p.dest, ppx, ppy + 3 * mScale);
         ctx.textBaseline = 'alphabetic';
       }
     }
 
-    // door animation
+    // door animation — sliding doors
     if (e.doorAnim > 0.01) {
-      const doorW = (SHAFT_W - 8) * 0.5 * e.doorAnim;
-      ctx.fillStyle = 'rgba(180,170,150,0.7)';
-      ctx.fillRect(sx + 3, cabY + 5, SHAFT_W/2 - 2 - doorW, cabH - 8);
-      ctx.fillRect(sx + SHAFT_W/2 + doorW, cabY + 5, SHAFT_W/2 - 2 - doorW, cabH - 8);
-      ctx.fillStyle = 'rgba(255,240,200,0.05)';
+      const doorW = (SHAFT_W - 10) * 0.5 * e.doorAnim;
+      const dLeft = cabX + 2;
+      const dRight = cabX + cabW - 2;
+      const dTop = cabY + 7;
+      const dH = cabH - 10;
+      // left door
+      const leftW = SHAFT_W/2 - 3 - doorW;
+      if (leftW > 0) {
+        ctx.fillStyle = 'rgba(200,190,175,0.8)';
+        roundRect(ctx, dLeft, dTop, leftW, dH, 1);
+        ctx.fill();
+        ctx.strokeStyle = 'rgba(150,140,125,0.2)';
+        ctx.lineWidth = 0.5;
+        ctx.beginPath(); ctx.moveTo(dLeft + leftW - 1, dTop + 3); ctx.lineTo(dLeft + leftW - 1, dTop + dH - 3); ctx.stroke();
+      }
+      // right door
+      const rightStart = sx + SHAFT_W/2 + doorW;
+      const rightW = dRight - rightStart;
+      if (rightW > 0) {
+        ctx.fillStyle = 'rgba(200,190,175,0.8)';
+        roundRect(ctx, rightStart, dTop, rightW, dH, 1);
+        ctx.fill();
+        ctx.strokeStyle = 'rgba(150,140,125,0.2)';
+        ctx.lineWidth = 0.5;
+        ctx.beginPath(); ctx.moveTo(rightStart + 1, dTop + 3); ctx.lineTo(rightStart + 1, dTop + dH - 3); ctx.stroke();
+      }
+      // warm light spill when doors open
+      if (doorW > 5) {
+        ctx.fillStyle = `rgba(255,242,210,${0.025 * e.doorAnim})`;
+        ctx.beginPath();
+        ctx.moveTo(sx + SHAFT_W/2 - doorW, dTop);
+        ctx.lineTo(sx - 10, cabY + cabH + 4);
+        ctx.lineTo(sx + SHAFT_W + 10, cabY + cabH + 4);
+        ctx.lineTo(sx + SHAFT_W/2 + doorW, dTop);
+        ctx.closePath();
+        ctx.fill();
+      }
+    }
+
+    // elevator name badge — pill
+    const badgeW = 16, badgeH = 11;
+    const badgeX = sx + SHAFT_W/2 - badgeW/2;
+    const badgeYPos = cabY - badgeH - 1;
+    ctx.fillStyle = brokenElevIdx === i ? '#ef5350' : e.color;
+    ctx.shadowColor = brokenElevIdx === i ? '#ef5350' : e.color;
+    ctx.shadowBlur = 4;
+    roundRect(ctx, badgeX, badgeYPos, badgeW, badgeH, badgeH/2);
+    ctx.fill();
+    ctx.shadowBlur = 0;
+    ctx.font = `bold ${Math.min(8, SHAFT_W * 0.17)}px -apple-system, sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillStyle = '#fff';
+    ctx.fillText(e.name, sx + SHAFT_W/2, badgeYPos + badgeH/2);
+    ctx.textBaseline = 'alphabetic';
+
+    // passenger count badge
+    if (pCount > 0) {
+      const cBadgeW = 20, cBadgeH = 10;
+      const cx = sx + SHAFT_W/2 - cBadgeW/2;
+      const cy = cabY + cabH + 2;
+      ctx.fillStyle = 'rgba(0,0,0,0.55)';
+      roundRect(ctx, cx, cy, cBadgeW, cBadgeH, 3.5);
+      ctx.fill();
+      ctx.strokeStyle = e.color + '33';
+      ctx.lineWidth = 0.5;
+      roundRect(ctx, cx, cy, cBadgeW, cBadgeH, 3.5);
+      ctx.stroke();
+      ctx.font = 'bold 7px -apple-system, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillStyle = '#ccc';
+      ctx.fillText(`${pCount}/${elevCap[e.idx]}`, sx + SHAFT_W/2, cy + cBadgeH/2);
+      ctx.textBaseline = 'alphabetic';
+    }
+
+    // direction arrow — smooth animated
+    if (e.moving) {
+      const goingUp = e.targetFloor > e.floor;
+      const arrowBob = Math.sin(tick * 0.15) * 1.5;
+      const arrowY = goingUp ? cabY - badgeH - 9 + arrowBob : cabY + cabH + 16 - arrowBob;
+      ctx.fillStyle = e.color + 'cc';
       ctx.beginPath();
-      ctx.moveTo(sx + SHAFT_W/2 - doorW, cabY + 5);
-      ctx.lineTo(sx - 12, cabY + cabH);
-      ctx.lineTo(sx + SHAFT_W + 12, cabY + cabH);
-      ctx.lineTo(sx + SHAFT_W/2 + doorW, cabY + 5);
+      if (goingUp) {
+        ctx.moveTo(sx + SHAFT_W/2, arrowY - 3.5);
+        ctx.lineTo(sx + SHAFT_W/2 - 4.5, arrowY + 2.5);
+        ctx.lineTo(sx + SHAFT_W/2 + 4.5, arrowY + 2.5);
+      } else {
+        ctx.moveTo(sx + SHAFT_W/2, arrowY + 3.5);
+        ctx.lineTo(sx + SHAFT_W/2 - 4.5, arrowY - 2.5);
+        ctx.lineTo(sx + SHAFT_W/2 + 4.5, arrowY - 2.5);
+      }
       ctx.closePath();
       ctx.fill();
     }
 
-    // elevator name badge
-    ctx.fillStyle = e.color;
-    const nameY = cabY - 1;
-    ctx.beginPath();
-    ctx.arc(sx + SHAFT_W/2, nameY, 7, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.font = `bold ${Math.min(9, SHAFT_W * 0.2)}px -apple-system, sans-serif`;
-    ctx.textAlign = 'center';
-    ctx.fillStyle = '#fff';
-    ctx.fillText(e.name, sx + SHAFT_W/2, nameY + 3);
-
-    // passenger count badge
-    if (pCount > 0) {
-      const countX = sx + SHAFT_W - 2;
-      const countY = cabY + cabH + 1;
-      ctx.fillStyle = 'rgba(0,0,0,0.5)';
-      roundRect(ctx, countX - 14, countY - 7, 16, 9, 3);
-      ctx.fill();
-      ctx.font = `bold 7px -apple-system, sans-serif`;
-      ctx.textAlign = 'center';
-      ctx.fillStyle = '#fff';
-      ctx.fillText(`${pCount}/${elevCap[e.idx]}`, countX - 6, countY - 1);
-    }
-
-    // direction arrow
-    if (e.moving) {
-      const arrowY = cabY + (e.targetFloor > e.floor ? -8 : cabH + 14);
-      ctx.fillStyle = e.color;
-      ctx.font = '10px sans-serif';
-      ctx.textAlign = 'center';
-      ctx.fillText(e.targetFloor > e.floor ? '▲' : '▼', sx + SHAFT_W/2, arrowY);
-    }
-
-    // selected indicator
+    // selected indicator — clean glowing border
     if (i === selectedElev) {
+      const selPulse = Math.sin(tick * 0.08) * 0.15 + 0.85;
       ctx.strokeStyle = e.color + 'aa';
-      ctx.lineWidth = 2;
-      ctx.setLineDash([5, 4]);
-      roundRect(ctx, sx - 2, cabY - 1, SHAFT_W + 4, cabH + 4, 5);
+      ctx.lineWidth = 1.5;
+      ctx.shadowColor = e.color;
+      ctx.shadowBlur = 6 * selPulse;
+      ctx.setLineDash([5, 3]);
+      ctx.lineDashOffset = -tick * 0.4;
+      roundRect(ctx, sx - 1, cabY, SHAFT_W + 2, cabH + 3, 5);
       ctx.stroke();
       ctx.setLineDash([]);
+      ctx.lineDashOffset = 0;
+      ctx.shadowBlur = 0;
     }
+
+    ctx.globalAlpha = 1;
   }
 }
 
 // ====== HUD ======
 function updateHUD() {
   document.getElementById('h-score').textContent = score;
-  document.getElementById('h-combo').textContent = combo > 1 ? `×${combo}` : '×1';
+  document.getElementById('h-combo').textContent = combo > 1 ? `x${combo}` : 'x1';
   document.getElementById('h-combo').style.color = combo >= 5 ? '#ff9800' : combo >= 3 ? '#ffd54f' : '#6a8098';
   const satisEl = document.getElementById('h-satis');
   satisEl.textContent = Math.round(satisfaction) + '%';
   satisEl.style.color = satisfaction >= 70 ? '#66bb6a' : satisfaction >= 40 ? '#ffa726' : '#ef5350';
-  document.getElementById('h-period').textContent = PERIODS[Math.min(periodIdx, PERIODS.length - 1)].name;
-  document.getElementById('h-waiting').textContent = waitingPeople.filter(p => !p.angry && !p.leaving).length + '人';
+  document.getElementById('h-period').textContent = periods[Math.min(periodIdx, periods.length - 1)].name;
+  document.getElementById('h-waiting').textContent = waitingPeople.filter(p => !p.angry && !p.leaving).length;
+  document.getElementById('h-day').textContent = 'Day ' + currentDay;
 
-  // progress bar
-  const pct = periodTimer / periodDurFrames * 100;
+  const pct = periodTimer / periodDur * 100;
   document.getElementById('h-bar').style.width = pct + '%';
 
-  // elevator info in bottom bar
   for (let i = 0; i < ELEV_COUNT; i++) {
     const e = elevators[i];
     const info = document.getElementById(`ei${i}`);
-    if (info) info.textContent = `${e.floor}F · ${e.passengers.length}人`;
+    if (info) {
+      if (brokenElevIdx === i) {
+        info.textContent = 'BROKEN';
+        info.style.color = '#ef5350';
+      } else {
+        info.textContent = `${e.floor}F-${e.passengers.length}`;
+        info.style.color = '';
+      }
+    }
+  }
+  updateMobileElevBar();
+}
+
+// ====== MOBILE FLOOR BUTTONS ======
+let lastMobileFloors = 0;
+function buildMobileFloors() {
+  if (FLOORS === lastMobileFloors) return;
+  lastMobileFloors = FLOORS;
+  const container = document.getElementById('mobile-floors');
+  container.innerHTML = '';
+  for (let f = FLOORS; f >= 1; f--) {
+    const btn = document.createElement('div');
+    btn.className = 'mf-btn';
+    btn.textContent = f;
+    btn.addEventListener('touchstart', (ev) => {
+      ev.preventDefault();
+      ev.stopPropagation();
+      if (!gameActive || paused) return;
+      ensureAudio();
+      sendElevToFloor(selectedElev, f);
+    }, { passive: false });
+    btn.addEventListener('click', (ev) => {
+      ev.stopPropagation();
+      if (!gameActive || paused) return;
+      ensureAudio();
+      sendElevToFloor(selectedElev, f);
+    });
+    container.appendChild(btn);
+  }
+}
+
+// ====== MOBILE ELEVATOR SELECTOR ======
+function initMobileElevBar() {
+  const bar = document.getElementById('mobile-elev-bar');
+  if (!bar) return;
+  const btns = bar.querySelectorAll('.me-btn');
+  btns.forEach(btn => {
+    const handler = (ev) => {
+      ev.preventDefault();
+      ev.stopPropagation();
+      if (!gameActive || paused) return;
+      ensureAudio();
+      const idx = parseInt(btn.dataset.idx);
+      const prevElev = selectedElev;
+      selectedElev = idx;
+      sfxClick();
+      // update visual
+      btns.forEach(b => b.classList.remove('selected'));
+      btn.classList.add('selected');
+      // tutorial step 4
+      if (tutorialStep === 4 && idx !== prevElev) {
+        tutorialElevSwitched = true;
+        tutorialStep = 5; tutorialTimer = 0;
+      }
+    };
+    btn.addEventListener('touchstart', handler, { passive: false });
+    btn.addEventListener('click', handler);
+  });
+}
+function updateMobileElevBar() {
+  const bar = document.getElementById('mobile-elev-bar');
+  if (!bar || bar.style.display === 'none') return;
+  const btns = bar.querySelectorAll('.me-btn');
+  btns.forEach((btn, idx) => {
+    btn.classList.toggle('selected', idx === selectedElev);
+    if (brokenElevIdx === idx) {
+      btn.style.opacity = '0.4';
+      btn.style.borderColor = '#ef5350';
+    } else {
+      btn.style.opacity = '';
+      btn.style.borderColor = '';
+    }
+  });
+}
+initMobileElevBar();
+
+// ====== LANDSCAPE HINT ======
+let landscapeHintDismissed = false;
+function showLandscapeHint() {
+  if (landscapeHintDismissed) return;
+  const el = document.getElementById('landscape-hint');
+  if (el) el.classList.add('active');
+}
+function dismissLandscapeHint() {
+  landscapeHintDismissed = true;
+  const el = document.getElementById('landscape-hint');
+  if (el) el.classList.remove('active');
+}
+// show on game start if portrait on mobile
+function checkLandscapeHint() {
+  if (isMobile && window.innerHeight > window.innerWidth && !landscapeHintDismissed) {
+    showLandscapeHint();
   }
 }
 
 // ====== UPGRADE SYSTEM ======
-function showUpgradeScreen() {
+function showUpgradeScreen(isDayTransition) {
   gameActive = false;
+
+  // clear events
+  if (activeEvent) {
+    if (activeEvent.name === 'Elevator Down') brokenElevIdx = -1;
+    activeEvent = null;
+    hideEventBanner();
+  }
+
   const overlay = document.getElementById('upgrade-overlay');
-  const period = PERIODS[periodIdx - 1];
-  document.getElementById('upg-title').textContent = `${period.name} 完成！`;
+
+  if (isDayTransition) {
+    document.getElementById('upg-title').textContent = `Day ${currentDay - 1} Complete!`;
+  } else {
+    const period = periods[periodIdx - 1];
+    document.getElementById('upg-title').textContent = `${period.name} Done!`;
+  }
   document.getElementById('upg-score').textContent = score;
   document.getElementById('upg-delivered').textContent = periodDelivered;
   document.getElementById('upg-combo').textContent = periodCombo;
 
-  // generate upgrade options
   const allUpgrades = [
-    { icon: '⚡', name: '涡轮加速', desc: '全部电梯速度+20%', apply: () => { elevSpeed = elevSpeed.map(s => s * 1.2); } },
-    { icon: '📦', name: '扩容改造', desc: '全部电梯容量+2', apply: () => { elevCap = elevCap.map(c => c + 2); } },
-    { icon: '😊', name: '安抚广播', desc: '乘客耐心+30%', apply: () => { waitingPeople.forEach(p => { p.maxWait *= 1.3; }); } },
-    { icon: '🔧', name: '快速开门', desc: '开门时间减半', apply: () => { /* handled in door logic */ } },
-    { icon: '💰', name: '双倍积分', desc: '下一时段分数×2', apply: () => { } },
-    { icon: '🛗', name: 'A号特化', desc: 'A号速度+50%', apply: () => { elevSpeed[0] *= 1.5; } },
+    { icon: '\u26A1', name: 'Turbo Boost', desc: 'All elevators +20% speed', apply: () => { elevSpeed = elevSpeed.map(s => s * 1.2); } },
+    { icon: '\uD83D\uDCE6', name: 'Expand', desc: 'All elevators +2 capacity', apply: () => { elevCap = elevCap.map(c => c + 2); } },
+    { icon: '\uD83D\uDE0A', name: 'Patience', desc: 'Passengers wait 30% longer', apply: () => { patienceMult *= 1.3; } },
+    { icon: '\uD83D\uDD27', name: 'Quick Doors', desc: 'Doors open/close faster', apply: () => { doorSpeedMult *= 1.5; } },
+    { icon: '\uD83D\uDCB0', name: 'Double Points', desc: 'Score x2 next period', apply: () => { scoreMult *= 2; } },
+    { icon: '\uD83D\uDED7', name: 'Boost A', desc: 'Elevator A +50% speed', apply: () => { elevSpeed[0] *= 1.5; } },
+    { icon: '\uD83D\uDED7', name: 'Boost B', desc: 'Elevator B +50% speed', apply: () => { elevSpeed[1] *= 1.5; } },
+    { icon: '\uD83D\uDED7', name: 'Boost C', desc: 'Elevator C +50% speed', apply: () => { elevSpeed[2] *= 1.5; } },
+    { icon: '\u2764\uFE0F', name: 'Recover', desc: 'Satisfaction +25', apply: () => { satisfaction = Math.min(100, satisfaction + 25); } },
+    { icon: '\uD83C\uDFAF', name: 'Combo Shield', desc: 'Combo lasts 50% longer', apply: () => { /* handled in combo logic via comboShield */ comboShield = true; } },
   ];
 
-  // pick 3 random
   const shuffled = allUpgrades.sort(() => Math.random() - 0.5);
   upgrades = shuffled.slice(0, 3);
 
@@ -1137,6 +2058,8 @@ function showUpgradeScreen() {
   overlay.classList.add('show');
 }
 
+let comboShield = false;
+
 function selectUpgrade(idx) {
   ensureAudio();
   sfxUpgrade();
@@ -1150,38 +2073,32 @@ function skipUpgrade() {
 
 function resumeAfterUpgrade() {
   document.getElementById('upgrade-overlay').classList.remove('show');
-  FLOORS = PERIODS[periodIdx].floors;
+  FLOORS = periods[periodIdx].floors;
   resize();
-  // move elevators to floor 1 of new layout
   for (const e of elevators) {
-    e.floor = 1; e.y = floorY(1); e.targetFloor = 1;
+    if (e.floor > FLOORS) { e.floor = FLOORS; e.y = floorY(FLOORS); }
+    e.y = floorY(e.floor);
+    e.targetFloor = e.floor;
     e.queue = []; e.moving = false;
   }
-  // remove people on floors that no longer exist
   waitingPeople = waitingPeople.filter(p => p.floor <= FLOORS && p.dest <= FLOORS);
-  periodDurFrames = PERIODS[periodIdx].dur * 60;
-  periodTimer = periodDurFrames;
+  periodDur = periods[periodIdx].dur;
+  periodTimer = periodDur;
   periodDelivered = 0;
   periodCombo = 0;
-  satisfaction = 100;
+  eventCooldown = 15;
+  buildMobileFloors();
   gameActive = true;
 }
 
 // ====== INTERACTION ======
-// Click directly on elevator cab to select, click on floor to dispatch
-function selElev(idx) {
-  selectedElev = idx;
-  sfxClick();
-}
-
 function hitTestElevator(mx, my) {
-  // check if click lands on any elevator cab (generous hitbox)
+  const pad = isMobile ? 14 : 8;
   for (let i = 0; i < ELEV_COUNT; i++) {
     const e = elevators[i];
     const sx = shaftX(i);
     const cabY = e.y;
     const cabH = FLOOR_H - 4;
-    const pad = 8; // extra padding for easier tapping
     if (mx >= sx - pad && mx <= sx + SHAFT_W + pad && my >= cabY - pad && my <= cabY + cabH + pad) {
       return i;
     }
@@ -1190,18 +2107,22 @@ function hitTestElevator(mx, my) {
 }
 
 function handleCanvasClick(mx, my) {
-  if (!gameActive) return;
+  if (!gameActive || paused) return;
   ensureAudio();
 
-  // first: check if clicking on an elevator cab
   const hitElev = hitTestElevator(mx, my);
   if (hitElev >= 0) {
+    const prevElev = selectedElev;
     selectedElev = hitElev;
     sfxClick();
+    if (tutorialStep === 1) { tutorialStep = 2; tutorialTimer = 0; }
+    if (tutorialStep === 4 && hitElev !== prevElev) {
+      tutorialElevSwitched = true;
+      tutorialStep = 5; tutorialTimer = 0;
+    }
     return;
   }
 
-  // otherwise: click on building floor → send selected elevator there
   if (mx >= BUILD_X && mx <= BUILD_X + BUILD_W && my >= HUD_H && my <= HUD_H + FLOORS * FLOOR_H) {
     const clickedFloor = Math.floor((HUD_H + FLOORS * FLOOR_H - my) / FLOOR_H) + 1;
     if (clickedFloor >= 1 && clickedFloor <= FLOORS) {
@@ -1212,16 +2133,19 @@ function handleCanvasClick(mx, my) {
 
 cvs.addEventListener('click', (ev) => {
   const rect = cvs.getBoundingClientRect();
-  handleCanvasClick(ev.clientX - rect.left, ev.clientY - rect.top);
+  const scaleX = cvs.width / rect.width;
+  const scaleY = cvs.height / rect.height;
+  handleCanvasClick((ev.clientX - rect.left) * scaleX, (ev.clientY - rect.top) * scaleY);
 });
 
 cvs.addEventListener('mousemove', (ev) => {
   if (!gameActive) return;
   const rect = cvs.getBoundingClientRect();
-  const mx = ev.clientX - rect.left;
-  const my = ev.clientY - rect.top;
+  const scaleX = cvs.width / rect.width;
+  const scaleY = cvs.height / rect.height;
+  const mx = (ev.clientX - rect.left) * scaleX;
+  const my = (ev.clientY - rect.top) * scaleY;
 
-  // check hover on elevator
   const hitElev = hitTestElevator(mx, my);
   if (hitElev >= 0) {
     hoveredFloor = -1;
@@ -1248,34 +2172,66 @@ cvs.addEventListener('touchstart', (ev) => {
   ev.preventDefault();
   const touch = ev.touches[0];
   const rect = cvs.getBoundingClientRect();
-  handleCanvasClick(touch.clientX - rect.left, touch.clientY - rect.top);
+  const scaleX = cvs.width / rect.width;
+  const scaleY = cvs.height / rect.height;
+  handleCanvasClick((touch.clientX - rect.left) * scaleX, (touch.clientY - rect.top) * scaleY);
 }, { passive: false });
 
-// keyboard — just space to start
+// Keyboard
 document.addEventListener('keydown', (ev) => {
+  // start screen
   if (ev.key === ' ' || ev.key === 'Enter') {
     const startScreen = document.getElementById('start-screen');
     if (startScreen.style.display !== 'none') {
       startGame();
       ev.preventDefault();
+      return;
+    }
+  }
+  // pause with Escape or P
+  if (ev.key === 'Escape' || ev.key === 'p' || ev.key === 'P') {
+    if (document.getElementById('game').classList.contains('active')) {
+      // don't pause during game over or upgrade screen
+      const goShow = document.getElementById('gameover-overlay').classList.contains('show');
+      const upShow = document.getElementById('upgrade-overlay').classList.contains('show');
+      if (!goShow && !upShow) {
+        togglePause();
+        ev.preventDefault();
+      }
+    }
+    return;
+  }
+  // mute with M
+  if (ev.key === 'm' || ev.key === 'M') {
+    toggleMute();
+    return;
+  }
+  // elevator selection
+  if (gameActive && !paused) {
+    const prevElev = selectedElev;
+    if (ev.key === '1') { selectedElev = 0; sfxClick(); }
+    if (ev.key === '2') { selectedElev = 1; sfxClick(); }
+    if (ev.key === '3') { selectedElev = 2; sfxClick(); }
+    if (tutorialStep === 4 && selectedElev !== prevElev) {
+      tutorialElevSwitched = true;
+      tutorialStep = 5; tutorialTimer = 0;
     }
   }
 });
 
 // ====== GAME OVER ======
-function endGame(failed = false) {
+function endGame(failed) {
   gameActive = false;
   const avgSatis = satisCount > 0 ? Math.round(satisAccum / satisCount) : 0;
 
-  // grade
   let grade, gradeClass;
-  if (failed) {
+  if (failed && currentDay <= 1) {
     grade = 'F'; gradeClass = 'f';
   } else {
     grade = 'D'; gradeClass = 'd';
-    if (score >= 1500 && avgSatis >= 80) { grade = 'S'; gradeClass = 's'; }
-    else if (score >= 1000 && avgSatis >= 65) { grade = 'A'; gradeClass = 'a'; }
-    else if (score >= 600 && avgSatis >= 50) { grade = 'B'; gradeClass = 'b'; }
+    if (currentDay >= 4 && avgSatis >= 80) { grade = 'S'; gradeClass = 's'; }
+    else if (currentDay >= 3 && avgSatis >= 65) { grade = 'A'; gradeClass = 'a'; }
+    else if (currentDay >= 2 && avgSatis >= 50) { grade = 'B'; gradeClass = 'b'; }
     else if (score >= 300) { grade = 'C'; gradeClass = 'c'; }
   }
 
@@ -1283,34 +2239,106 @@ function endGame(failed = false) {
   gradeEl.textContent = grade;
   gradeEl.className = 'go-grade ' + gradeClass;
 
-  document.getElementById('go-title').textContent = failed ? '调度失败！' : grade === 'S' ? '完美调度！' : grade === 'D' ? '需要加油...' : '调度完成！';
+  const titles = {
+    'S': 'Master Dispatcher!', 'A': 'Great Job!', 'B': 'Well Done!',
+    'C': 'Not Bad!', 'D': 'Keep Trying...', 'F': 'Dispatch Failed!'
+  };
+  document.getElementById('go-title').textContent = titles[grade];
   document.getElementById('go-score').textContent = score;
+  document.getElementById('go-day').textContent = currentDay;
   document.getElementById('go-delivered').textContent = totalDelivered;
   document.getElementById('go-angry').textContent = totalAngry;
   document.getElementById('go-combo').textContent = maxCombo;
   document.getElementById('go-satis').textContent = avgSatis + '%';
 
+  // high score check
+  const isNewBest = score > highScore || currentDay > highDay;
+  document.getElementById('go-newbest').style.display = isNewBest ? 'block' : 'none';
+  if (score > highScore) highScore = score;
+  if (currentDay > highDay) highDay = currentDay;
+  saveHighScore();
+
   setTimeout(() => document.getElementById('gameover-overlay').classList.add('show'), 500);
 }
 
 function retryGame() {
+  document.getElementById('gameover-overlay').classList.remove('show');
   initGame();
+}
+
+// ====== PAUSE / MUTE / MENU ======
+let paused = false;
+let muted = false;
+
+function togglePause() {
+  if (!document.getElementById('game').classList.contains('active')) return;
+  paused = !paused;
+  gameActive = !paused;
+  document.getElementById('pause-overlay').classList.toggle('show', paused);
+  document.getElementById('btn-pause').textContent = paused ? '\u25B6' : 'II';
+}
+
+function toggleMute() {
+  muted = !muted;
+  const btn = document.getElementById('btn-mute');
+  btn.classList.toggle('muted', muted);
+  btn.textContent = muted ? 'OFF' : 'SFX';
+  if (audioCtx) {
+    if (muted) {
+      audioCtx.suspend();
+    } else {
+      audioCtx.resume();
+    }
+  }
+}
+
+// public mute control for ad integration
+function muteGame() { if (!muted) toggleMute(); }
+function unmuteGame() { if (muted) toggleMute(); }
+
+function goToMenu() {
+  paused = false;
+  gameActive = false;
+  stopBGM();
+  document.getElementById('pause-overlay').classList.remove('show');
+  document.getElementById('gameover-overlay').classList.remove('show');
+  document.getElementById('upgrade-overlay').classList.remove('show');
+  document.getElementById('game').classList.remove('active');
+  const s = document.getElementById('start-screen');
+  s.style.display = '';
+  s.classList.remove('hide');
+  document.getElementById('btn-pause').textContent = 'II';
+  loadHighScore();
+  showHighScoreOnStart();
 }
 
 // ====== START / LOOP ======
 function startGame() {
   ensureAudio();
+  startBGM();
   const s = document.getElementById('start-screen');
   s.classList.add('hide');
   setTimeout(() => s.style.display = 'none', 600);
   document.getElementById('game').classList.add('active');
   resize();
   initGame();
-  if (!animFrame) gameLoop();
+  checkLandscapeHint();
+  if (!animFrame) gameLoop(0);
 }
 
-function gameLoop() {
-  if (gameActive) update();
+function gameLoop(timestamp) {
+  if (lastTime === 0) lastTime = timestamp;
+  let dt = (timestamp - lastTime) / 1000; // seconds
+  lastTime = timestamp;
+
+  // clamp dt to avoid spiral of death
+  if (dt > 0.1) dt = 0.1;
+  if (dt <= 0) dt = 1 / 60;
+
+  // skip update when paused but keep rendering
+  if (paused) dt = 0;
+
+  if (gameActive && !paused) update(dt);
   render();
   animFrame = requestAnimationFrame(gameLoop);
 }
@@ -1329,3 +2357,14 @@ function roundRect(ctx, x, y, w, h, r) {
   ctx.quadraticCurveTo(x, y, x + r, y);
   ctx.closePath();
 }
+
+// ====== LOADING SCREEN ======
+window.addEventListener('load', () => {
+  const ls = document.getElementById('loading-screen');
+  if (ls) {
+    setTimeout(() => {
+      ls.classList.add('done');
+      setTimeout(() => ls.remove(), 500);
+    }, 600);
+  }
+});
