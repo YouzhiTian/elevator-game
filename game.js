@@ -804,76 +804,112 @@ function drawDangerVignette() {
   ctx.fillRect(0, 0, W, H);
 }
 
+function drawSpotlightMask(cx, cy, r) {
+  // dark overlay with circular cutout — the circle area stays bright
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(0, 0, W, H);
+  ctx.arc(cx, cy, r + 2, 0, Math.PI * 2, true); // counter-clockwise = cutout
+  ctx.closePath();
+  ctx.fillStyle = 'rgba(0,0,0,0.45)';
+  ctx.fill();
+  ctx.restore();
+}
+
 function drawTutorial() {
   if (tutorialStep < 0) return;
 
   const pulse = (Math.sin(tutorialPulse) * 0.5 + 0.5); // 0-1 pulsing
 
   if (tutorialStep === 1) {
-    // highlight elevator A — pulsing ring around it
+    // highlight elevator A with spotlight
     const e = elevators[0];
     const sx = shaftX(0);
     const cabY = e.y;
     const cabH = FLOOR_H - 4;
     const cx = sx + SHAFT_W / 2;
     const cy = cabY + cabH / 2;
-    const radius = Math.max(SHAFT_W, cabH) * 0.6 + pulse * 6;
+    const radius = Math.max(SHAFT_W, cabH) * 0.65 + pulse * 5;
 
-    // ring
-    ctx.strokeStyle = `rgba(79,195,247,${0.4 + pulse * 0.4})`;
-    ctx.lineWidth = 3;
+    // dim mask with cutout
+    drawSpotlightMask(cx, cy, radius);
+
+    // outer glow ring
+    ctx.shadowColor = '#4fc3f7';
+    ctx.shadowBlur = 14;
+    ctx.strokeStyle = `rgba(79,195,247,${0.5 + pulse * 0.4})`;
+    ctx.lineWidth = 2.5;
     ctx.beginPath(); ctx.arc(cx, cy, radius, 0, Math.PI * 2); ctx.stroke();
+    ctx.shadowBlur = 0;
 
-    // arrow pointing down to elevator
-    const arrowX = cx;
-    const arrowY = cabY - 25 - pulse * 5;
-    ctx.fillStyle = '#4fc3f7';
-    ctx.beginPath();
-    ctx.moveTo(arrowX, arrowY + 12);
-    ctx.lineTo(arrowX - 8, arrowY);
-    ctx.lineTo(arrowX + 8, arrowY);
-    ctx.closePath();
-    ctx.fill();
+    // inner dashed ring (spinning)
+    ctx.strokeStyle = `rgba(79,195,247,${0.2 + pulse * 0.2})`;
+    ctx.lineWidth = 1.5;
+    ctx.setLineDash([4, 4]);
+    ctx.lineDashOffset = -tick * 0.3;
+    ctx.beginPath(); ctx.arc(cx, cy, radius - 6, 0, Math.PI * 2); ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.lineDashOffset = 0;
 
-    // text bubble
-    drawTutorialBubble(cx, arrowY - 28, 'Click elevator to select');
+    // finger tap icon
+    const fingerY = cy + radius + 10 + pulse * 3;
+    ctx.font = '18px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillStyle = `rgba(79,195,247,${0.6 + pulse * 0.3})`;
+    ctx.fillText('\u{1F446}', cx, fingerY + 5);
+
+    drawTutorialBubble(cx, cabY - 35, 'Tap this elevator');
+    // explain the number badge above passengers
+    drawTutorialBubble(W / 2, H * 0.88, 'The number above a person = their destination floor');
   }
 
   if (tutorialStep === 2) {
-    // highlight floor with waiting person
     const person = waitingPeople.find(p => !p.angry && !p.leaving);
     if (person) {
       const fy = floorY(person.floor);
-      // highlight the floor
-      ctx.fillStyle = `rgba(255,213,79,${0.05 + pulse * 0.08})`;
-      ctx.fillRect(BUILD_X, fy, BUILD_W, FLOOR_H);
-      ctx.strokeStyle = `rgba(255,213,79,${0.3 + pulse * 0.4})`;
-      ctx.lineWidth = 2;
-      ctx.strokeRect(BUILD_X, fy, BUILD_W, FLOOR_H);
+      const floorCX = BUILD_X + BUILD_W / 2;
+      const floorCY = fy + FLOOR_H / 2;
+      const circleR = Math.max(BUILD_W * 0.55, FLOOR_H * 0.6) + pulse * 4;
 
-      // arrow + text
-      const cx = BUILD_X + BUILD_W / 2;
-      const arrowY = fy - 10 - pulse * 5;
-      ctx.fillStyle = '#ffd54f';
-      ctx.beginPath();
-      ctx.moveTo(cx, arrowY + 12);
-      ctx.lineTo(cx - 8, arrowY);
-      ctx.lineTo(cx + 8, arrowY);
-      ctx.closePath();
-      ctx.fill();
+      // dim mask with cutout
+      drawSpotlightMask(floorCX, floorCY, circleR);
 
-      drawTutorialBubble(cx, arrowY - 28, 'Click this floor to send elevator');
+      // outer glow ring
+      ctx.shadowColor = '#ffd54f';
+      ctx.shadowBlur = 14;
+      ctx.strokeStyle = `rgba(255,213,79,${0.5 + pulse * 0.4})`;
+      ctx.lineWidth = 2.5;
+      ctx.beginPath(); ctx.arc(floorCX, floorCY, circleR, 0, Math.PI * 2); ctx.stroke();
+      ctx.shadowBlur = 0;
+
+      // inner dashed ring
+      ctx.strokeStyle = `rgba(255,213,79,${0.2 + pulse * 0.2})`;
+      ctx.lineWidth = 1.5;
+      ctx.setLineDash([4, 4]);
+      ctx.lineDashOffset = -tick * 0.3;
+      ctx.beginPath(); ctx.arc(floorCX, floorCY, circleR - 6, 0, Math.PI * 2); ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.lineDashOffset = 0;
+
+      // finger tap icon
+      const fingerY = floorCY + circleR + 10 + pulse * 3;
+      ctx.font = '18px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillStyle = `rgba(255,213,79,${0.6 + pulse * 0.3})`;
+      ctx.fillText('\u{1F446}', floorCX, fingerY + 5);
+
+      drawTutorialBubble(floorCX, fy - 30, 'Tap this floor to send elevator');
     } else {
-      // no person yet, show generic hint
-      drawTutorialBubble(W / 2, H / 2, 'Click a floor to dispatch');
+      drawTutorialBubble(W / 2, H / 2, 'Tap a floor to dispatch');
     }
   }
 
   if (tutorialStep === 3) {
-    // brief "Nice!" message then advance to step 4
-    const alpha = Math.max(0, 1 - tutorialTimer / 1.5);
-    ctx.globalAlpha = Math.max(0.2, alpha);
-    drawTutorialBubble(W / 2, H * 0.35, 'Nice! You got it!');
+    // explain auto-delivery after first success
+    const alpha = Math.max(0, 1 - tutorialTimer / 1.8);
+    ctx.globalAlpha = Math.max(0.15, alpha);
+    drawTutorialBubble(W / 2, H * 0.3, 'Nice! Elevator auto-delivers passengers');
+    drawTutorialBubble(W / 2, H * 0.3 + 32, 'Multiple passengers? Nearest floor first');
     ctx.globalAlpha = 1;
   }
 
