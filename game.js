@@ -1576,86 +1576,131 @@ function drawElevatorShafts() {
     const sx = shaftX(i);
     const shaftY = HUD_H;
     const shaftH = FLOORS * FLOOR_H;
+    const sw = SHAFT_W;
 
-    // shaft background — clean dark gradient
-    const shaftGrad = ctx.createLinearGradient(sx, shaftY, sx + SHAFT_W, shaftY);
-    shaftGrad.addColorStop(0, '#0e1a28');
-    shaftGrad.addColorStop(0.2, '#0b1520');
-    shaftGrad.addColorStop(0.5, '#09121c');
-    shaftGrad.addColorStop(0.8, '#0b1520');
-    shaftGrad.addColorStop(1, '#0e1a28');
+    // shaft deep background
+    const shaftGrad = ctx.createLinearGradient(sx, shaftY, sx + sw, shaftY);
+    shaftGrad.addColorStop(0, '#121c2a');
+    shaftGrad.addColorStop(0.15, '#0d1620');
+    shaftGrad.addColorStop(0.5, '#0a1018');
+    shaftGrad.addColorStop(0.85, '#0d1620');
+    shaftGrad.addColorStop(1, '#121c2a');
     ctx.fillStyle = shaftGrad;
-    ctx.fillRect(sx, shaftY, SHAFT_W, shaftH);
+    ctx.fillRect(sx, shaftY, sw, shaftH);
 
-    // broken elevator visual
+    // broken elevator tint
     if (brokenElevIdx === i) {
-      ctx.fillStyle = `rgba(255,40,40,${0.05 + Math.sin(tick * 0.15) * 0.03})`;
-      ctx.fillRect(sx, shaftY, SHAFT_W, shaftH);
+      ctx.fillStyle = `rgba(255,30,30,${0.04 + Math.sin(tick * 0.15) * 0.03})`;
+      ctx.fillRect(sx, shaftY, sw, shaftH);
     }
 
-    // shaft side walls — subtle inset
-    ctx.fillStyle = 'rgba(50,80,110,0.12)';
-    ctx.fillRect(sx, shaftY, 2.5, shaftH);
-    ctx.fillRect(sx + SHAFT_W - 2.5, shaftY, 2.5, shaftH);
+    // shaft walls — brushed metal inset
+    const lwGrad = ctx.createLinearGradient(sx, shaftY, sx + 3, shaftY);
+    lwGrad.addColorStop(0, 'rgba(70,100,130,0.18)');
+    lwGrad.addColorStop(1, 'rgba(40,60,80,0.04)');
+    ctx.fillStyle = lwGrad;
+    ctx.fillRect(sx, shaftY, 3, shaftH);
+    const rwGrad = ctx.createLinearGradient(sx + sw - 3, shaftY, sx + sw, shaftY);
+    rwGrad.addColorStop(0, 'rgba(40,60,80,0.04)');
+    rwGrad.addColorStop(1, 'rgba(70,100,130,0.18)');
+    ctx.fillStyle = rwGrad;
+    ctx.fillRect(sx + sw - 3, shaftY, 3, shaftH);
 
-    // guide rails — thin lines
-    ctx.strokeStyle = 'rgba(90,140,190,0.07)';
-    ctx.lineWidth = 1;
-    ctx.beginPath();
-    ctx.moveTo(sx + 3.5, shaftY); ctx.lineTo(sx + 3.5, shaftY + shaftH);
-    ctx.moveTo(sx + SHAFT_W - 3.5, shaftY); ctx.lineTo(sx + SHAFT_W - 3.5, shaftY + shaftH);
-    ctx.stroke();
+    // guide rails — T-profile
+    ctx.fillStyle = 'rgba(80,110,140,0.08)';
+    ctx.fillRect(sx + 3, shaftY, 2, shaftH);
+    ctx.fillRect(sx + sw - 5, shaftY, 2, shaftH);
+    // rail highlight
+    ctx.fillStyle = 'rgba(120,160,200,0.04)';
+    ctx.fillRect(sx + 3, shaftY, 0.5, shaftH);
+    ctx.fillRect(sx + sw - 5, shaftY, 0.5, shaftH);
 
-    // floor door frames — clean recessed look
+    // floor landing doors — stainless steel look
     for (let f = 1; f <= FLOORS; f++) {
       const fy = floorY(f);
-      const doorX = sx + 5;
-      const doorW = SHAFT_W - 10;
+      const doorX = sx + 6;
+      const doorW = sw - 12;
       const doorY = fy + 3;
       const doorH = FLOOR_H - 5;
-      // recessed opening
-      ctx.fillStyle = 'rgba(15,25,40,0.45)';
+
+      // door recess shadow
+      ctx.fillStyle = 'rgba(5,10,18,0.5)';
+      roundRect(ctx, doorX - 1, doorY - 1, doorW + 2, doorH + 2, 2);
+      ctx.fill();
+
+      // closed landing doors — brushed steel
+      const ldGrad = ctx.createLinearGradient(doorX, doorY, doorX + doorW, doorY);
+      ldGrad.addColorStop(0, 'rgba(55,70,85,0.55)');
+      ldGrad.addColorStop(0.3, 'rgba(70,88,105,0.5)');
+      ldGrad.addColorStop(0.48, 'rgba(60,78,95,0.55)');
+      ldGrad.addColorStop(0.52, 'rgba(55,72,88,0.6)');
+      ldGrad.addColorStop(0.7, 'rgba(70,88,105,0.5)');
+      ldGrad.addColorStop(1, 'rgba(55,70,85,0.55)');
+      ctx.fillStyle = ldGrad;
       roundRect(ctx, doorX, doorY, doorW, doorH, 1.5);
       ctx.fill();
-      // door frame — thin clean border
-      ctx.strokeStyle = 'rgba(80,120,160,0.1)';
+
+      // center seam (two-panel door)
+      ctx.strokeStyle = 'rgba(30,45,60,0.4)';
       ctx.lineWidth = 0.8;
+      ctx.beginPath();
+      ctx.moveTo(sx + sw / 2, doorY + 2);
+      ctx.lineTo(sx + sw / 2, doorY + doorH - 2);
+      ctx.stroke();
+
+      // door frame — thin metallic border
+      ctx.strokeStyle = 'rgba(90,120,150,0.12)';
+      ctx.lineWidth = 1;
       roundRect(ctx, doorX, doorY, doorW, doorH, 1.5);
       ctx.stroke();
-      // mini floor indicator
-      ctx.fillStyle = 'rgba(0,0,0,0.3)';
-      roundRect(ctx, sx + SHAFT_W/2 - 7, fy + 1.5, 14, 6, 2);
+
+      // floor indicator above door — LED display
+      const indW = Math.min(18, sw * 0.28);
+      const indH = 7;
+      const indX = sx + sw / 2 - indW / 2;
+      const indY = fy + 1;
+      // indicator bg
+      ctx.fillStyle = 'rgba(0,0,0,0.45)';
+      roundRect(ctx, indX, indY, indW, indH, 2);
       ctx.fill();
-      ctx.fillStyle = e.color + '55';
-      ctx.font = 'bold 5px -apple-system, sans-serif';
+      // LED number
+      ctx.fillStyle = e.color + '77';
+      ctx.font = `bold ${Math.min(6, sw * 0.1)}px monospace`;
       ctx.textAlign = 'center';
-      ctx.fillText(f, sx + SHAFT_W/2, fy + 6);
+      ctx.textBaseline = 'middle';
+      ctx.fillText(f, sx + sw / 2, indY + indH / 2);
+      ctx.textBaseline = 'alphabetic';
+
+      // call button — small circle beside door
+      const btnR = 2;
+      const btnX = doorX + doorW + 3;
+      const btnY = fy + FLOOR_H / 2;
+      if (btnX + btnR < sx + sw) {
+        ctx.fillStyle = 'rgba(40,55,70,0.4)';
+        ctx.beginPath(); ctx.arc(btnX, btnY, btnR + 0.5, 0, Math.PI * 2); ctx.fill();
+        // lit if in queue
+        const inQueue = e.queue.includes(f);
+        ctx.fillStyle = inQueue ? e.color + 'aa' : 'rgba(60,80,100,0.3)';
+        ctx.beginPath(); ctx.arc(btnX, btnY, btnR, 0, Math.PI * 2); ctx.fill();
+        if (inQueue) {
+          ctx.shadowColor = e.color;
+          ctx.shadowBlur = 4;
+          ctx.beginPath(); ctx.arc(btnX, btnY, btnR, 0, Math.PI * 2); ctx.fill();
+          ctx.shadowBlur = 0;
+        }
+      }
     }
 
-    // queue indicators — soft glowing dots
-    for (const qf of e.queue) {
-      const qy = floorY(qf) + FLOOR_H / 2;
-      ctx.fillStyle = e.color + '44';
-      ctx.shadowColor = e.color;
-      ctx.shadowBlur = 5;
-      ctx.beginPath(); ctx.arc(sx + SHAFT_W / 2, qy, 2.5, 0, Math.PI * 2); ctx.fill();
-      ctx.shadowBlur = 0;
-      // gentle pulse ring
-      const pulse = Math.sin(tick * 0.08) * 2 + 4.5;
-      ctx.strokeStyle = e.color + '18';
-      ctx.lineWidth = 0.8;
-      ctx.beginPath(); ctx.arc(sx + SHAFT_W / 2, qy, pulse, 0, Math.PI * 2); ctx.stroke();
-    }
-
-    // cable — single clean line
-    const cableX = sx + SHAFT_W/2;
-    ctx.strokeStyle = 'rgba(120,160,200,0.12)';
-    ctx.lineWidth = 1.2;
-    ctx.beginPath(); ctx.moveTo(cableX, shaftY); ctx.lineTo(cableX, e.y + 2); ctx.stroke();
-    // second cable — very subtle
-    ctx.strokeStyle = 'rgba(100,140,180,0.05)';
-    ctx.lineWidth = 0.8;
-    ctx.beginPath(); ctx.moveTo(cableX + 2, shaftY); ctx.lineTo(cableX + 2, e.y + 2); ctx.stroke();
+    // cables — twin steel wires
+    const cableX = sx + sw / 2;
+    ctx.strokeStyle = 'rgba(140,170,200,0.1)';
+    ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(cableX - 1.5, shaftY); ctx.lineTo(cableX - 1.5, e.y + 2); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(cableX + 1.5, shaftY); ctx.lineTo(cableX + 1.5, e.y + 2); ctx.stroke();
+    // cable highlight
+    ctx.strokeStyle = 'rgba(180,210,240,0.04)';
+    ctx.lineWidth = 0.5;
+    ctx.beginPath(); ctx.moveTo(cableX - 1, shaftY); ctx.lineTo(cableX - 1, e.y + 2); ctx.stroke();
   }
 }
 
@@ -1663,53 +1708,117 @@ function drawElevatorCabs() {
   for (let i = 0; i < ELEV_COUNT; i++) {
     const e = elevators[i];
     const sx = shaftX(i);
+    const sw = SHAFT_W;
     const cabY = e.y;
     const cabH = FLOOR_H - 4;
-    const cabX = sx + 2;
-    const cabW = SHAFT_W - 4;
+    const cabX = sx + 3;
+    const cabW = sw - 6;
+    const m = sw / 70; // scale factor relative to default shaft width
 
     // broken elevator: dim and flash
     if (brokenElevIdx === i) {
-      ctx.globalAlpha = 0.35 + Math.sin(tick * 0.2) * 0.15;
+      ctx.globalAlpha = 0.3 + Math.sin(tick * 0.2) * 0.15;
     }
 
-    // cab soft glow
+    // ---- cab outer shell — stainless steel ----
+    // outer glow (subtle for unselected, brighter for selected)
     ctx.shadowColor = e.color;
-    ctx.shadowBlur = i === selectedElev ? 14 : 6;
+    ctx.shadowBlur = i === selectedElev ? 16 : 4;
 
-    // cab body — clean warm gradient
-    const cabGrad = ctx.createLinearGradient(sx, cabY, sx, cabY + cabH);
-    cabGrad.addColorStop(0, '#f0e8d8');
-    cabGrad.addColorStop(0.15, '#eee4d2');
-    cabGrad.addColorStop(0.5, '#e6dcc8');
-    cabGrad.addColorStop(1, '#d8ceb8');
-    ctx.fillStyle = cabGrad;
-    roundRect(ctx, cabX, cabY + 2, cabW, cabH, 3);
+    // main body — brushed steel gradient (top to bottom)
+    const bodyGrad = ctx.createLinearGradient(cabX, cabY, cabX, cabY + cabH);
+    bodyGrad.addColorStop(0, '#c8c0b0');
+    bodyGrad.addColorStop(0.03, '#d8d0c0');
+    bodyGrad.addColorStop(0.08, '#e8e0d2');
+    bodyGrad.addColorStop(0.5, '#ddd5c5');
+    bodyGrad.addColorStop(0.92, '#ccc4b4');
+    bodyGrad.addColorStop(1, '#b8b0a0');
+    ctx.fillStyle = bodyGrad;
+    roundRect(ctx, cabX, cabY + 1, cabW, cabH, 4);
     ctx.fill();
     ctx.shadowBlur = 0;
 
-    // colored top accent strip
-    ctx.fillStyle = e.color;
-    roundRect(ctx, cabX, cabY + 2, cabW, 3.5, 3);
+    // horizontal brushed texture lines
+    ctx.strokeStyle = 'rgba(0,0,0,0.03)';
+    ctx.lineWidth = 0.5;
+    for (let ty = cabY + 6; ty < cabY + cabH - 4; ty += 3) {
+      ctx.beginPath();
+      ctx.moveTo(cabX + 2, ty);
+      ctx.lineTo(cabX + cabW - 2, ty);
+      ctx.stroke();
+    }
+
+    // colored accent strip at top
+    const stripH = Math.max(3, 4 * m);
+    const stripGrad = ctx.createLinearGradient(cabX, cabY, cabX + cabW, cabY);
+    stripGrad.addColorStop(0, e.color + 'aa');
+    stripGrad.addColorStop(0.5, e.color);
+    stripGrad.addColorStop(1, e.color + 'aa');
+    ctx.fillStyle = stripGrad;
+    roundRect(ctx, cabX, cabY + 1, cabW, stripH, 4);
     ctx.fill();
-    ctx.fillRect(cabX + 2, cabY + 4, cabW - 4, 1.5);
+    // cover bottom rounding
+    ctx.fillStyle = stripGrad;
+    ctx.fillRect(cabX + 2, cabY + stripH - 1, cabW - 4, 2);
 
-    // interior — back wall
-    ctx.fillStyle = 'rgba(200,192,175,0.25)';
-    ctx.fillRect(cabX + 2, cabY + 8, cabW - 4, cabH - 12);
+    // interior visible area — darker recessed area
+    const intX = cabX + 3;
+    const intY = cabY + stripH + 3;
+    const intW = cabW - 6;
+    const intH = cabH - stripH - 8;
 
-    // ceiling light strip
-    ctx.fillStyle = 'rgba(255,250,235,0.18)';
-    ctx.fillRect(sx + SHAFT_W/2 - 7, cabY + 7, 14, 1.5);
+    // interior back wall
+    const intGrad = ctx.createLinearGradient(intX, intY, intX, intY + intH);
+    intGrad.addColorStop(0, 'rgba(180,172,158,0.35)');
+    intGrad.addColorStop(0.5, 'rgba(165,157,143,0.3)');
+    intGrad.addColorStop(1, 'rgba(140,132,118,0.35)');
+    ctx.fillStyle = intGrad;
+    roundRect(ctx, intX, intY, intW, intH, 2);
+    ctx.fill();
 
-    // floor — subtle dark
-    ctx.fillStyle = 'rgba(70,62,48,0.35)';
-    ctx.fillRect(cabX + 2, cabY + cabH - 4, cabW - 4, 3);
+    // ceiling light — warm LED strip
+    ctx.fillStyle = 'rgba(255,248,230,0.25)';
+    const lightW = intW * 0.7;
+    ctx.fillRect(intX + (intW - lightW) / 2, intY, lightW, 1.5);
+    // light glow downward
+    const lightGlow = ctx.createLinearGradient(intX, intY, intX, intY + intH * 0.4);
+    lightGlow.addColorStop(0, 'rgba(255,245,220,0.06)');
+    lightGlow.addColorStop(1, 'rgba(255,245,220,0)');
+    ctx.fillStyle = lightGlow;
+    ctx.fillRect(intX, intY, intW, intH * 0.4);
 
-    // cab frame — single clean border
-    ctx.strokeStyle = 'rgba(170,155,130,0.4)';
-    ctx.lineWidth = 1;
-    roundRect(ctx, cabX, cabY + 2, cabW, cabH, 3);
+    // interior floor — dark polished
+    const flrH = 3;
+    const flrY = intY + intH - flrH;
+    const flrGrad = ctx.createLinearGradient(intX, flrY, intX, flrY + flrH);
+    flrGrad.addColorStop(0, 'rgba(60,55,45,0.3)');
+    flrGrad.addColorStop(1, 'rgba(45,40,32,0.5)');
+    ctx.fillStyle = flrGrad;
+    ctx.fillRect(intX + 1, flrY, intW - 2, flrH);
+    // floor reflection
+    ctx.fillStyle = 'rgba(255,250,240,0.03)';
+    ctx.fillRect(intX + 2, flrY, intW - 4, 0.8);
+
+    // interior side handrail hints
+    ctx.strokeStyle = 'rgba(160,150,130,0.15)';
+    ctx.lineWidth = 0.8;
+    const railY = intY + intH * 0.55;
+    ctx.beginPath();
+    ctx.moveTo(intX + 1, railY);
+    ctx.lineTo(intX + intW - 1, railY);
+    ctx.stroke();
+
+    // outer frame — steel border with highlight
+    ctx.strokeStyle = 'rgba(150,140,125,0.45)';
+    ctx.lineWidth = 1.2;
+    roundRect(ctx, cabX, cabY + 1, cabW, cabH, 4);
+    ctx.stroke();
+    // top edge highlight (light reflection)
+    ctx.strokeStyle = 'rgba(255,250,240,0.12)';
+    ctx.lineWidth = 0.5;
+    ctx.beginPath();
+    ctx.moveTo(cabX + 6, cabY + 1.5);
+    ctx.lineTo(cabX + cabW - 6, cabY + 1.5);
     ctx.stroke();
 
     // broken X overlay
@@ -1718,30 +1827,27 @@ function drawElevatorCabs() {
       ctx.lineWidth = 2.5;
       ctx.lineCap = 'round';
       ctx.beginPath();
-      ctx.moveTo(sx + 8, cabY + 8); ctx.lineTo(sx + SHAFT_W - 8, cabY + cabH - 8);
-      ctx.moveTo(sx + SHAFT_W - 8, cabY + 8); ctx.lineTo(sx + 8, cabY + cabH - 8);
+      ctx.moveTo(cabX + 6, cabY + 8); ctx.lineTo(cabX + cabW - 6, cabY + cabH - 6);
+      ctx.moveTo(cabX + cabW - 6, cabY + 8); ctx.lineTo(cabX + 6, cabY + cabH - 6);
       ctx.stroke();
       ctx.lineCap = 'butt';
       ctx.globalAlpha = 1;
     }
 
-    // passengers inside cab
+    // ---- passengers inside cab ----
     const pCount = e.passengers.length;
     if (pCount > 0 && brokenElevIdx !== i) {
-      const innerW = SHAFT_W - 10;
-      const innerX = sx + 5;
       const cols = Math.min(pCount, 3);
       const rows = Math.ceil(pCount / 3);
-      const personW = innerW / cols;
-      const personAreaH = cabH - 14;
-      const personH = personAreaH / rows;
+      const personW = intW / cols;
+      const personH = intH / rows;
 
       for (let pi = 0; pi < pCount; pi++) {
         const p = e.passengers[pi];
         const col = pi % 3;
         const row = Math.floor(pi / 3);
-        const ppx = innerX + col * personW + personW / 2;
-        const ppy = cabY + 10 + row * personH + personH * 0.7;
+        const ppx = intX + col * personW + personW / 2;
+        const ppy = intY + 4 + row * personH + personH * 0.65;
         const mScale = Math.min(1.5, personH / 14);
 
         drawPersonMini(ppx, ppy, mScale, p.color, p.head);
@@ -1765,114 +1871,136 @@ function drawElevatorCabs() {
       }
     }
 
-    // door animation — sliding doors
+    // ---- door animation — stainless steel sliding panels ----
     if (e.doorAnim > 0.01) {
-      const doorW = (SHAFT_W - 10) * 0.5 * e.doorAnim;
-      const dLeft = cabX + 2;
-      const dRight = cabX + cabW - 2;
-      const dTop = cabY + 7;
-      const dH = cabH - 10;
-      // left door
-      const leftW = SHAFT_W/2 - 3 - doorW;
+      const doorOpenW = (cabW - 8) * 0.5 * e.doorAnim;
+      const dLeft = cabX + 3;
+      const dRight = cabX + cabW - 3;
+      const dTop = intY;
+      const dH = intH;
+
+      // left door panel
+      const leftW = cabW / 2 - 4 - doorOpenW;
       if (leftW > 0) {
-        ctx.fillStyle = 'rgba(200,190,175,0.8)';
+        const lgrd = ctx.createLinearGradient(dLeft, dTop, dLeft + leftW, dTop);
+        lgrd.addColorStop(0, 'rgba(180,172,160,0.85)');
+        lgrd.addColorStop(0.7, 'rgba(195,187,175,0.82)');
+        lgrd.addColorStop(1, 'rgba(170,162,150,0.88)');
+        ctx.fillStyle = lgrd;
         roundRect(ctx, dLeft, dTop, leftW, dH, 1);
         ctx.fill();
-        ctx.strokeStyle = 'rgba(150,140,125,0.2)';
+        // edge groove
+        ctx.strokeStyle = 'rgba(130,122,110,0.25)';
         ctx.lineWidth = 0.5;
-        ctx.beginPath(); ctx.moveTo(dLeft + leftW - 1, dTop + 3); ctx.lineTo(dLeft + leftW - 1, dTop + dH - 3); ctx.stroke();
+        ctx.beginPath();
+        ctx.moveTo(dLeft + leftW - 0.5, dTop + 2);
+        ctx.lineTo(dLeft + leftW - 0.5, dTop + dH - 2);
+        ctx.stroke();
       }
-      // right door
-      const rightStart = sx + SHAFT_W/2 + doorW;
+      // right door panel
+      const rightStart = sx + sw / 2 + doorOpenW;
       const rightW = dRight - rightStart;
       if (rightW > 0) {
-        ctx.fillStyle = 'rgba(200,190,175,0.8)';
+        const rgrd = ctx.createLinearGradient(rightStart, dTop, rightStart + rightW, dTop);
+        rgrd.addColorStop(0, 'rgba(170,162,150,0.88)');
+        rgrd.addColorStop(0.3, 'rgba(195,187,175,0.82)');
+        rgrd.addColorStop(1, 'rgba(180,172,160,0.85)');
+        ctx.fillStyle = rgrd;
         roundRect(ctx, rightStart, dTop, rightW, dH, 1);
         ctx.fill();
-        ctx.strokeStyle = 'rgba(150,140,125,0.2)';
+        ctx.strokeStyle = 'rgba(130,122,110,0.25)';
         ctx.lineWidth = 0.5;
-        ctx.beginPath(); ctx.moveTo(rightStart + 1, dTop + 3); ctx.lineTo(rightStart + 1, dTop + dH - 3); ctx.stroke();
-      }
-      // warm light spill when doors open
-      if (doorW > 5) {
-        ctx.fillStyle = `rgba(255,242,210,${0.025 * e.doorAnim})`;
         ctx.beginPath();
-        ctx.moveTo(sx + SHAFT_W/2 - doorW, dTop);
-        ctx.lineTo(sx - 10, cabY + cabH + 4);
-        ctx.lineTo(sx + SHAFT_W + 10, cabY + cabH + 4);
-        ctx.lineTo(sx + SHAFT_W/2 + doorW, dTop);
+        ctx.moveTo(rightStart + 0.5, dTop + 2);
+        ctx.lineTo(rightStart + 0.5, dTop + dH - 2);
+        ctx.stroke();
+      }
+      // warm light spill from open doors
+      if (doorOpenW > 4) {
+        const spillAlpha = 0.02 * e.doorAnim;
+        ctx.fillStyle = `rgba(255,242,215,${spillAlpha})`;
+        ctx.beginPath();
+        ctx.moveTo(sx + sw / 2 - doorOpenW, dTop + dH);
+        ctx.lineTo(sx - 8, cabY + cabH + 6);
+        ctx.lineTo(sx + sw + 8, cabY + cabH + 6);
+        ctx.lineTo(sx + sw / 2 + doorOpenW, dTop + dH);
         ctx.closePath();
         ctx.fill();
       }
     }
 
-    // elevator name badge — pill
-    const badgeW = 16, badgeH = 11;
-    const badgeX = sx + SHAFT_W/2 - badgeW/2;
-    const badgeYPos = cabY - badgeH - 1;
+    // ---- name badge — colored pill above cab ----
+    const badgeW = Math.max(16, 18 * m);
+    const badgeH = Math.max(10, 12 * m);
+    const badgeX2 = sx + sw / 2 - badgeW / 2;
+    const badgeYPos = cabY - badgeH;
+    // badge bg
     ctx.fillStyle = brokenElevIdx === i ? '#ef5350' : e.color;
     ctx.shadowColor = brokenElevIdx === i ? '#ef5350' : e.color;
-    ctx.shadowBlur = 4;
-    roundRect(ctx, badgeX, badgeYPos, badgeW, badgeH, badgeH/2);
+    ctx.shadowBlur = 5;
+    roundRect(ctx, badgeX2, badgeYPos, badgeW, badgeH, badgeH / 2);
     ctx.fill();
     ctx.shadowBlur = 0;
-    ctx.font = `bold ${Math.min(8, SHAFT_W * 0.17)}px -apple-system, sans-serif`;
+    // badge text
+    ctx.font = `bold ${Math.max(7, Math.min(9, sw * 0.14))}px -apple-system, sans-serif`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     ctx.fillStyle = '#fff';
-    ctx.fillText(e.name, sx + SHAFT_W/2, badgeYPos + badgeH/2);
+    ctx.fillText(e.name, sx + sw / 2, badgeYPos + badgeH / 2);
     ctx.textBaseline = 'alphabetic';
 
-    // passenger count badge
+    // ---- passenger count badge below cab ----
     if (pCount > 0) {
-      const cBadgeW = 20, cBadgeH = 10;
-      const cx = sx + SHAFT_W/2 - cBadgeW/2;
+      const cW = Math.max(18, 22 * m);
+      const cH = Math.max(9, 11 * m);
+      const cx = sx + sw / 2 - cW / 2;
       const cy = cabY + cabH + 2;
       ctx.fillStyle = 'rgba(0,0,0,0.55)';
-      roundRect(ctx, cx, cy, cBadgeW, cBadgeH, 3.5);
+      roundRect(ctx, cx, cy, cW, cH, cH / 2);
       ctx.fill();
       ctx.strokeStyle = e.color + '33';
       ctx.lineWidth = 0.5;
-      roundRect(ctx, cx, cy, cBadgeW, cBadgeH, 3.5);
+      roundRect(ctx, cx, cy, cW, cH, cH / 2);
       ctx.stroke();
-      ctx.font = 'bold 7px -apple-system, sans-serif';
+      ctx.font = `bold ${Math.max(6, 7 * m)}px -apple-system, sans-serif`;
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
       ctx.fillStyle = '#ccc';
-      ctx.fillText(`${pCount}/${elevCap[e.idx]}`, sx + SHAFT_W/2, cy + cBadgeH/2);
+      ctx.fillText(`${pCount}/${elevCap[e.idx]}`, sx + sw / 2, cy + cH / 2);
       ctx.textBaseline = 'alphabetic';
     }
 
-    // direction arrow — smooth animated
+    // ---- direction arrow ----
     if (e.moving) {
       const goingUp = e.targetFloor > e.floor;
       const arrowBob = Math.sin(tick * 0.15) * 1.5;
-      const arrowY = goingUp ? cabY - badgeH - 9 + arrowBob : cabY + cabH + 16 - arrowBob;
+      const arrowY = goingUp ? badgeYPos - 7 + arrowBob : cabY + cabH + (pCount > 0 ? 16 : 6) - arrowBob;
+      const arrowSize = 4 * m;
       ctx.fillStyle = e.color + 'cc';
       ctx.beginPath();
       if (goingUp) {
-        ctx.moveTo(sx + SHAFT_W/2, arrowY - 3.5);
-        ctx.lineTo(sx + SHAFT_W/2 - 4.5, arrowY + 2.5);
-        ctx.lineTo(sx + SHAFT_W/2 + 4.5, arrowY + 2.5);
+        ctx.moveTo(sx + sw / 2, arrowY - arrowSize);
+        ctx.lineTo(sx + sw / 2 - arrowSize, arrowY + arrowSize * 0.6);
+        ctx.lineTo(sx + sw / 2 + arrowSize, arrowY + arrowSize * 0.6);
       } else {
-        ctx.moveTo(sx + SHAFT_W/2, arrowY + 3.5);
-        ctx.lineTo(sx + SHAFT_W/2 - 4.5, arrowY - 2.5);
-        ctx.lineTo(sx + SHAFT_W/2 + 4.5, arrowY - 2.5);
+        ctx.moveTo(sx + sw / 2, arrowY + arrowSize);
+        ctx.lineTo(sx + sw / 2 - arrowSize, arrowY - arrowSize * 0.6);
+        ctx.lineTo(sx + sw / 2 + arrowSize, arrowY - arrowSize * 0.6);
       }
       ctx.closePath();
       ctx.fill();
     }
 
-    // selected indicator — clean glowing border
+    // ---- selected indicator — animated glow border ----
     if (i === selectedElev) {
       const selPulse = Math.sin(tick * 0.08) * 0.15 + 0.85;
-      ctx.strokeStyle = e.color + 'aa';
+      ctx.strokeStyle = e.color + '99';
       ctx.lineWidth = 1.5;
       ctx.shadowColor = e.color;
-      ctx.shadowBlur = 6 * selPulse;
+      ctx.shadowBlur = 8 * selPulse;
       ctx.setLineDash([5, 3]);
       ctx.lineDashOffset = -tick * 0.4;
-      roundRect(ctx, sx - 1, cabY, SHAFT_W + 2, cabH + 3, 5);
+      roundRect(ctx, cabX - 2, cabY - 1, cabW + 4, cabH + 4, 6);
       ctx.stroke();
       ctx.setLineDash([]);
       ctx.lineDashOffset = 0;
